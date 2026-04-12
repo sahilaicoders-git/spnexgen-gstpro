@@ -1,0 +1,15 @@
+{
+  "client_name": "Ramesh & Co",
+  "gstin": "27AAAFR6789P1Z3",
+  "financial_year": "FY_2025-26",
+  "month": "August",
+  "sales": {
+    "b2b": [],
+    "b2c": []
+  },
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

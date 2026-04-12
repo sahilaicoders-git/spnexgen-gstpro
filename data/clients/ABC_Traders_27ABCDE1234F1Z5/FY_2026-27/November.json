@@ -1,0 +1,12 @@
+{
+  "client_name": "ABC Traders",
+  "gstin": "27ABCDE1234F1Z5",
+  "financial_year": "FY_2026-27",
+  "month": "November",
+  "sales": [],
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

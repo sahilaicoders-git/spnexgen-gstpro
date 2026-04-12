@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SPGST Boot</title>
+    <link rel="stylesheet" href="./styles/splash.css" />
+  </head>
+  <body>
+    <div class="scene" id="scene">
+      <div class="grid"></div>
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+
+      <div class="brand-wrap">
+        <div class="logo-shell" aria-hidden="true">
+          <div class="logo-core">SG</div>
+        </div>
+
+        <p class="kicker" id="kicker">Launching</p>
+        <h1 class="brand" id="brandTitle">SPGST</h1>
+        <p class="tagline" id="tagline">Smart GST Management</p>
+
+        <div class="loader-row" aria-label="Loading application">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="loader-text" id="loaderText">Loading</span>
+          <span class="dot dot-a" aria-hidden="true"></span>
+          <span class="dot dot-b" aria-hidden="true"></span>
+          <span class="dot dot-c" aria-hidden="true"></span>
+        </div>
+
+        <div class="loader-track">
+          <div class="loader-progress" id="loader"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="./splash.js"></script>
+  </body>
+</html>

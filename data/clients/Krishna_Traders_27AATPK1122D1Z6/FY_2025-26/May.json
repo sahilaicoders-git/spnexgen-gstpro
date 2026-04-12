@@ -1,0 +1,15 @@
+{
+  "client_name": "Krishna Traders",
+  "gstin": "27AATPK1122D1Z6",
+  "financial_year": "FY_2025-26",
+  "month": "May",
+  "sales": {
+    "b2b": [],
+    "b2c": []
+  },
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

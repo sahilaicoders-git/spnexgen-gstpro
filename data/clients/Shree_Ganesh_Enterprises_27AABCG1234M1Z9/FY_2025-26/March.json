@@ -1,0 +1,15 @@
+{
+  "client_name": "Shree Ganesh Enterprises",
+  "gstin": "27AABCG1234M1Z9",
+  "financial_year": "FY_2025-26",
+  "month": "March",
+  "sales": {
+    "b2b": [],
+    "b2c": []
+  },
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

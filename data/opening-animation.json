@@ -1,0 +1,11 @@
+{
+  "appName": "SPGST",
+  "kicker": "Welcome",
+  "tagline": "Smart GST Management",
+  "durationMs": 2000,
+  "primaryColor": "#2ac98f",
+  "accentColor": "#2bd3d7",
+  "backgroundStart": "#0F172A",
+  "backgroundEnd": "#1E293B",
+  "autoOpenMain": true
+}

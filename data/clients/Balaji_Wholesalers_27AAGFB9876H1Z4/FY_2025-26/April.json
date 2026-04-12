@@ -1,0 +1,15 @@
+{
+  "client_name": "Balaji Wholesalers",
+  "gstin": "27AAGFB9876H1Z4",
+  "financial_year": "FY_2025-26",
+  "month": "April",
+  "sales": {
+    "b2b": [],
+    "b2c": []
+  },
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

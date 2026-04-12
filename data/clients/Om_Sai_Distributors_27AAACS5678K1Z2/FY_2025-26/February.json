@@ -1,0 +1,15 @@
+{
+  "client_name": "Om Sai Distributors",
+  "gstin": "27AAACS5678K1Z2",
+  "financial_year": "FY_2025-26",
+  "month": "February",
+  "sales": {
+    "b2b": [],
+    "b2c": []
+  },
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

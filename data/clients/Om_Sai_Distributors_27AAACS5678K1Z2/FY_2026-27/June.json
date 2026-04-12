@@ -1,0 +1,12 @@
+{
+  "client_name": "Om Sai Distributors",
+  "gstin": "27AAACS5678K1Z2",
+  "financial_year": "FY_2026-27",
+  "month": "June",
+  "sales": [],
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "client_name": "Sai Krupa Agency",
+  "gstin": "27AAKFS2345Q1Z8",
+  "financial_year": "FY_2026-27",
+  "month": "March",
+  "sales": [],
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

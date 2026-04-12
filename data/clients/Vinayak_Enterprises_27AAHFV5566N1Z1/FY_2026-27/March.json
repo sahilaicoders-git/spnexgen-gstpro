@@ -1,0 +1,12 @@
+{
+  "client_name": "Vinayak Enterprises",
+  "gstin": "27AAHFV5566N1Z1",
+  "financial_year": "FY_2026-27",
+  "month": "March",
+  "sales": [],
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}

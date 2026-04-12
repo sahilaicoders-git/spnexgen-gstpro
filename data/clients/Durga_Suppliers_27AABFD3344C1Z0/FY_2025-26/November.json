@@ -1,0 +1,15 @@
+{
+  "client_name": "Durga Suppliers",
+  "gstin": "27AABFD3344C1Z0",
+  "financial_year": "FY_2025-26",
+  "month": "November",
+  "sales": {
+    "b2b": [],
+    "b2c": []
+  },
+  "purchases": [],
+  "returns": {
+    "gstr1": "pending",
+    "gstr3b": "pending"
+  }
+}
