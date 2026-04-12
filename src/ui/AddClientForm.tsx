@@ -48,6 +48,11 @@ type ClientFormData = {
 
 type ErrorMap = Record<string, string>;
 
+type AddClientFormProps = {
+  onSaved?: () => void | Promise<void>;
+  onCancel?: () => void;
+};
+
 const STATE_CODES: Record<string, string> = {
   "01": "Jammu & Kashmir",
   "02": "Himachal Pradesh",
@@ -118,8 +123,6 @@ const INITIAL_DATA: ClientFormData = {
   remarks: "",
 };
 
-const STORAGE_KEY = "spgst_clients";
-
 const steps = [
   { id: 0, label: "Basic", icon: Building2 },
   { id: 1, label: "Address", icon: MapPin },
@@ -137,17 +140,7 @@ function deriveStateFromGstin(gstin: string): string {
   return STATE_CODES[gstin.slice(0, 2)] ?? "";
 }
 
-function getStoredClients(): ClientFormData[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const data = window.localStorage.getItem(STORAGE_KEY);
-    return data ? (JSON.parse(data) as ClientFormData[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export default function AddClientForm() {
+export default function AddClientForm({ onSaved, onCancel }: AddClientFormProps) {
   const [formData, setFormData] = useState<ClientFormData>(INITIAL_DATA);
   const [errors, setErrors] = useState<ErrorMap>({});
   const [step, setStep] = useState(0);
@@ -241,20 +234,33 @@ export default function AddClientForm() {
     setMessage("Client details fetched successfully from GSTIN.");
   };
 
-  const saveClient = () => {
+  const saveClient = async () => {
     if (!validate()) return;
 
-    const existing = getStoredClients();
-    const duplicate = existing.some((item) => item.gstin === formData.gstin);
-    if (duplicate) {
-      setErrors((prev) => ({ ...prev, gstin: "Duplicate GSTIN. Client already exists." }));
+    if (!window.gstAPI) {
+      setMessage("Unable to save client. Desktop API is unavailable.");
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...existing, formData]));
-    setMessage("Client saved successfully.");
-    setFormData(INITIAL_DATA);
-    setStep(0);
+    try {
+      await window.gstAPI.createClientStructure({
+        clientName: formData.clientName.trim(),
+        gstin: formData.gstin.trim().toUpperCase(),
+        clientType: formData.clientType,
+        status: "Active",
+      });
+
+      setMessage("Client saved successfully.");
+      setFormData(INITIAL_DATA);
+      setStep(0);
+
+      if (onSaved) {
+        await onSaved();
+      }
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Unable to save client.";
+      setErrors((prev) => ({ ...prev, gstin: text }));
+    }
   };
 
   const cancelForm = () => {
@@ -262,6 +268,7 @@ export default function AddClientForm() {
     setErrors({});
     setStep(0);
     setMessage("Form reset.");
+    onCancel?.();
   };
 
   const cardClass = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";

@@ -407,7 +407,9 @@ app.whenReady().then(async () => {
   dataRoot = resolvedRoot;
   clientService = createClientDataService(dataRoot);
   clientService.ensureClientsRoot();
-  initTestClients(clientService);
+  if (!app.isPackaged) {
+    initTestClients(clientService);
+  }
   setupIpcHandlers();
 
   createSplashWindow();

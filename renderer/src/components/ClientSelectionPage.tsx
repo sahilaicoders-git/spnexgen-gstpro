@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Calendar, Search, UserCheck } from "lucide-react";
+import { Building2, Calendar, Plus, Search, UserCheck } from "lucide-react";
 import type { ClientMonthReturnSnapshot, ClientRecord, ClientStatusRow, ReturnStatusValue } from "../types";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   monthOptions: string[];
   onFinancialYearChange: (fy: string) => void;
   onMonthChange: (month: string) => void;
+  onOpenAddClient: () => void;
   onSelectClient: (client: ClientRecord) => void;
 };
 
@@ -66,6 +67,7 @@ export default function ClientSelectionPage({
   monthOptions,
   onFinancialYearChange,
   onMonthChange,
+  onOpenAddClient,
   onSelectClient,
 }: Props) {
   const [search, setSearch] = useState("");
@@ -287,6 +289,15 @@ export default function ClientSelectionPage({
                 />
                 Show Previous Month Status
               </label>
+
+              <button
+                type="button"
+                onClick={onOpenAddClient}
+                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+              >
+                <Plus size={14} />
+                Add Client
+              </button>
             </div>
           </div>
 

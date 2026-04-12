@@ -72,7 +72,7 @@ export default function App() {
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [recentClients, setRecentClients] = useState<ClientRecord[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
-  const [route, setRoute] = useState<"client-selection" | "dashboard">("client-selection");
+  const [route, setRoute] = useState<"client-selection" | "add-client" | "dashboard">("client-selection");
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingClients, setLoadingClients] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
@@ -568,7 +568,21 @@ export default function App() {
         monthOptions={MONTHS}
         onFinancialYearChange={setFinancialYear}
         onMonthChange={setMonth}
+        onOpenAddClient={() => setRoute("add-client")}
         onSelectClient={handleSelectClient}
+      />
+    );
+  }
+
+  if (route === "add-client") {
+    return (
+      <AddClientForm
+        onSaved={async () => {
+          await refreshClients();
+          setRoute("client-selection");
+          setStatusText("Client saved successfully.");
+        }}
+        onCancel={() => setRoute("client-selection")}
       />
     );
   }
