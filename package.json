@@ -11,6 +11,7 @@
   "build": {
     "appId": "com.spgst.desktop",
     "productName": "SPGST",
+    "icon": "build/icons/icon.icns",
     "directories": {
       "output": "release"
     },
@@ -28,6 +29,7 @@
       }
     ],
     "mac": {
+      "icon": "build/icons/icon.icns",
       "target": [
         "dmg"
       ],
