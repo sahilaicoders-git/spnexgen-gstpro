@@ -1,0 +1,360 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: #0f172a;
+  background: var(--app-bg);
+}
+
+:root {
+  --app-bg: #f3f4f6;
+  --content-bg: #f8fafc;
+  --topbar-bg: rgba(255, 255, 255, 0.96);
+  --topbar-border: #e5e7eb;
+  --topbar-text: #111827;
+}
+
+html.dark {
+  --app-bg: #0f172a;
+  --content-bg: #0f172a;
+  --topbar-bg: rgba(30, 41, 59, 0.94);
+  --topbar-border: #334155;
+  --topbar-text: #e2e8f0;
+}
+
+html.dark body {
+  color: #e2e8f0;
+}
+
+html.dark .bg-white {
+  background-color: #1e293b !important;
+}
+
+html.dark .bg-slate-50 {
+  background-color: #0f172a !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: #1f2937 !important;
+}
+
+html.dark .bg-cyan-50,
+html.dark .bg-emerald-50,
+html.dark .bg-amber-50,
+html.dark .bg-rose-50,
+html.dark .bg-blue-50,
+html.dark .bg-indigo-50,
+html.dark .bg-violet-50 {
+  background-color: #1e293b !important;
+}
+
+html.dark .bg-cyan-100,
+html.dark .bg-emerald-100,
+html.dark .bg-amber-100,
+html.dark .bg-rose-100,
+html.dark .bg-blue-100,
+html.dark .bg-indigo-100,
+html.dark .bg-violet-100 {
+  background-color: #334155 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-slate-100 {
+  border-color: #334155 !important;
+}
+
+html.dark .border-cyan-200,
+html.dark .border-emerald-200,
+html.dark .border-amber-200,
+html.dark .border-rose-200,
+html.dark .border-blue-200,
+html.dark .border-indigo-200,
+html.dark .border-violet-200,
+html.dark .border-cyan-300,
+html.dark .border-emerald-300,
+html.dark .border-amber-300,
+html.dark .border-rose-300,
+html.dark .border-blue-300,
+html.dark .border-indigo-300,
+html.dark .border-violet-300 {
+  border-color: #475569 !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-slate-400 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-black {
+  color: #e2e8f0 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark select option {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+html.dark thead.bg-slate-100,
+html.dark .bg-slate-100.text-slate-600 {
+  background-color: #1f2937 !important;
+  color: #cbd5e1 !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155 !important;
+}
+
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-200:hover {
+  background-color: #334155 !important;
+}
+
+html.dark .recharts-cartesian-axis-tick-value,
+html.dark .recharts-text,
+html.dark .recharts-legend-item-text {
+  fill: #e2e8f0 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .recharts-cartesian-grid line {
+  stroke: #475569 !important;
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #0f172a;
+}
+
+::-moz-selection {
+  background: #bfdbfe;
+  color: #0f172a;
+}
+
+html.dark ::selection {
+  background: #3b82f6;
+  color: #f8fafc;
+}
+
+html.dark ::-moz-selection {
+  background: #3b82f6;
+  color: #f8fafc;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.65);
+}
+
+button,
+input,
+select {
+  transition: all 0.2s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CUSTOM TITLE BAR
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --titlebar-height: 38px;
+  --titlebar-bg: #ffffff;
+  --titlebar-text: #111827;
+  --titlebar-icon-rgb: 30, 41, 59;
+  --titlebar-btn-size: 46px;
+  --titlebar-btn-icon-color: #4b5563;
+}
+
+html.dark {
+  --titlebar-bg: #0d1117;
+  --titlebar-text: #e2e8f0;
+  --titlebar-icon-rgb: 226, 232, 240;
+  --titlebar-btn-icon-color: #94a3b8;
+}
+
+/* Outer shell — full-height flex column */
+.app-with-titlebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Content area that scrolls below the title bar */
+.app-content-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+
+/* ── Title bar container ─────────────────────────────────────────── */
+.titlebar {
+  height: var(--titlebar-height);
+  min-height: var(--titlebar-height);
+  background: var(--titlebar-bg);
+  border-bottom: 1px solid rgba(var(--titlebar-icon-rgb), 0.1);
+  display: flex;
+  align-items: center;
+  user-select: none;
+  /* Make the whole bar draggable — buttons override this below */
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 9999;
+  transition: background 0.3s ease, border-color 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+html.dark .titlebar {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Brand section (icon + name) ────────────────────────────────── */
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 100%;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.titlebar-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 3px;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.titlebar-title {
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--titlebar-text);
+  opacity: 0.85;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Draggable spacer ─────────────────────────────────────────── */
+.titlebar-drag-region {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+
+/* ── Window control buttons ─────────────────────────────────────── */
+.titlebar-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--titlebar-btn-size);
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--titlebar-btn-icon-color);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  outline: none;
+  -webkit-app-region: no-drag;
+  position: relative;
+}
+
+.titlebar-btn svg {
+  pointer-events: none;
+}
+
+/* Minimize — amber/yellow hover */
+.titlebar-btn--minimize:hover {
+  background: rgba(251, 191, 36, 0.15);
+  color: #d97706;
+}
+
+html.dark .titlebar-btn--minimize:hover {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+
+/* Maximize — green hover */
+.titlebar-btn--maximize:hover {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+
+html.dark .titlebar-btn--maximize:hover {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+}
+
+/* Close — red hover (brighter bg + white icon) */
+.titlebar-btn--close:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+html.dark .titlebar-btn--close:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+/* Active press feel */
+.titlebar-btn:active {
+  opacity: 0.75;
+  transform: scale(0.92);
+}
+

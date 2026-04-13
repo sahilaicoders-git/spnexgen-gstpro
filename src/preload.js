@@ -1,0 +1,67 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Expose window-management controls to the renderer for the custom title bar.
+contextBridge.exposeInMainWorld('windowControls', {
+  minimize: () => ipcRenderer.send('window-minimize'),
+  maximize: () => ipcRenderer.send('window-maximize'),
+  close: () => ipcRenderer.send('window-close'),
+  isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onStateChange: (callback) => {
+    const listener = (_, isMaximized) => callback(isMaximized);
+    ipcRenderer.on('window-state-changed', listener);
+    // Return a cleanup function
+    return () => ipcRenderer.removeListener('window-state-changed', listener);
+  }
+});
+
+contextBridge.exposeInMainWorld('gstAPI', {
+  getClients: () => ipcRenderer.invoke('get-clients'),
+  createClientStructure: (payload) => ipcRenderer.invoke('create-client-structure', payload),
+  loadMonthData: (payload) => ipcRenderer.invoke('load-month-data', payload),
+  loadClientStatus: (payload) => ipcRenderer.invoke('load-client-status', payload),
+  saveMonthData: (payload) => ipcRenderer.invoke('save-month-data', payload),
+  updateReturnStatus: (payload) => ipcRenderer.invoke('update-return-status', payload),
+  loadCustomers: (payload) => ipcRenderer.invoke('load-customers', payload),
+  saveCustomer: (payload) => ipcRenderer.invoke('save-customer', payload),
+  updateCustomer: (payload) => ipcRenderer.invoke('update-customer', payload),
+  deleteCustomer: (payload) => ipcRenderer.invoke('delete-customer', payload),
+  toggleCustomerFavorite: (payload) => ipcRenderer.invoke('toggle-customer-favorite', payload),
+  loadSuppliers: (payload) => ipcRenderer.invoke('load-suppliers', payload),
+  saveSupplier: (payload) => ipcRenderer.invoke('save-supplier', payload),
+  updateSupplier: (payload) => ipcRenderer.invoke('update-supplier', payload),
+  deleteSupplier: (payload) => ipcRenderer.invoke('delete-supplier', payload),
+  toggleSupplierFavorite: (payload) => ipcRenderer.invoke('toggle-supplier-favorite', payload),
+  importPurchase: (payload) => ipcRenderer.invoke('import-purchase', payload),
+  previewPurchaseImport: (payload) => ipcRenderer.invoke('preview-purchase-import', payload),
+  importPurchaseData: (payload) => ipcRenderer.invoke('import-purchase-data', payload),
+  savePurchase: (payload) => ipcRenderer.invoke('save-purchase', payload),
+  loadPurchase: (payload) => ipcRenderer.invoke('load-purchase', payload),
+  deletePurchase: (payload) => ipcRenderer.invoke('delete-purchase', payload),
+  saveSale: (payload) => ipcRenderer.invoke('save-sale', payload),
+  loadSales: (payload) => ipcRenderer.invoke('load-sales', payload),
+  deleteSale: (payload) => ipcRenderer.invoke('delete-sale', payload),
+  exportSales: (payload) => ipcRenderer.invoke('export-sales', payload),
+  loadGstr1Data: (payload) => ipcRenderer.invoke('load-gstr1-data', payload),
+  saveGstr1Data: (payload) => ipcRenderer.invoke('save-gstr1-data', payload),
+  exportGstr1: (payload) => ipcRenderer.invoke('export-gstr1', payload),
+  exportGstr1Offline: (payload) => ipcRenderer.invoke('export-gstr1-offline', payload),
+  markGstr1Filed: (payload) => ipcRenderer.invoke('mark-gstr1-filed', payload),
+  loadGstr3bData: (payload) => ipcRenderer.invoke('load-gstr3b-data', payload),
+  saveGstr3bData: (payload) => ipcRenderer.invoke('save-gstr3b-data', payload),
+  exportGstr3b: (payload) => ipcRenderer.invoke('export-gstr3b', payload),
+  markGstr3bFiled: (payload) => ipcRenderer.invoke('mark-gstr3b-filed', payload),
+  loadReportsData: (payload) => ipcRenderer.invoke('load-reports-data', payload),
+  exportMonthlyReport: (payload) => ipcRenderer.invoke('export-monthly-report', payload),
+  exportGstSummaryPdf: (payload) => ipcRenderer.invoke('export-gst-summary-pdf', payload),
+  loadYearlyReportData: (payload) => ipcRenderer.invoke('load-yearly-report-data', payload),
+  exportYearlyReport: (payload) => ipcRenderer.invoke('export-yearly-report', payload),
+  exportYearlySummaryPdf: (payload) => ipcRenderer.invoke('export-yearly-summary-pdf', payload),
+  calculateGst: (payload) => ipcRenderer.invoke('calculate-gst', payload),
+  generateInvoice: (payload) => ipcRenderer.invoke('generate-invoice', payload),
+  backupData: () => ipcRenderer.invoke('backup-data'),
+  restoreData: (payload) => ipcRenderer.invoke('restore-data', payload),
+  generateMockData: (payload) => ipcRenderer.invoke('generate-mock-data', payload),
+  generatePurchaseMock: (payload) => ipcRenderer.invoke('generate-purchase-mock', payload),
+  backupDataFolder: () => ipcRenderer.invoke('backup-data-folder'),
+  notifyClientSelected: (client) => ipcRenderer.send('client-selected', client)
+});

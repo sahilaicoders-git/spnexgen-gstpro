@@ -1,0 +1,37 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="120" y1="96" x2="904" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A3466"/>
+      <stop offset="0.5" stop-color="#0D73A8"/>
+      <stop offset="1" stop-color="#11A88B"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="220" y1="710" x2="804" y2="710" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DDF7FF"/>
+      <stop offset="1" stop-color="#C8FAEC"/>
+    </linearGradient>
+    <filter id="shadow" x="40" y="40" width="944" height="944" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#032543" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="96" y="96" width="832" height="832" rx="190" fill="url(#bgGrad)"/>
+  </g>
+
+  <rect x="148" y="148" width="728" height="728" rx="158" stroke="#E8F9FF" stroke-opacity="0.85" stroke-width="24"/>
+
+  <text
+    x="512"
+    y="590"
+    text-anchor="middle"
+    fill="#F1FBFF"
+    font-size="310"
+    font-weight="900"
+    font-family="Avenir Next, Montserrat, Poppins, sans-serif"
+    letter-spacing="4"
+  >GST</text>
+
+  <rect x="220" y="664" width="584" height="34" rx="17" fill="url(#lineGrad)"/>
+  <circle cx="786" cy="252" r="40" fill="#9CF5D9" fill-opacity="0.92"/>
+  <circle cx="246" cy="778" r="28" fill="#B0E9FF" fill-opacity="0.86"/>
+</svg>
