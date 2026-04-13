@@ -1,6 +1,6 @@
 {
   "name": "spgstpro",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "SPGST Pro – Professional GST Accounting for India",
   "main": "src/main.js",
   "scripts": {

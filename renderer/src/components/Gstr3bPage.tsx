@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileCheck2, RefreshCcw, Save, TriangleAlert } from "lucide-react";
+import { CheckCircle, Download, FileCheck2, Pencil, RefreshCcw, Save, TrendingUp, TriangleAlert, X } from "lucide-react";
 import type {
   ClientRecord,
   Gstr3bAdjustments,
@@ -147,6 +147,11 @@ export default function Gstr3bPage({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Gstr3bDataResponse | null>(null);
+
+  // Opening ITC balance editor state
+  const [openingItcEdit, setOpeningItcEdit] = useState(false);
+  const [openingItcDraft, setOpeningItcDraft] = useState({ igst: 0, cgst: 0, sgst: 0 });
+
   const [adjustments, setAdjustments] = useState<Gstr3bAdjustments>({
     zeroRatedTaxable: 0,
     zeroRatedIgst: 0,
@@ -213,6 +218,7 @@ export default function Gstr3bPage({
 
   const loadData = async () => {
     setLoading(true);
+    setOpeningItcEdit(false);
     try {
       const next = await window.gstAPI.loadGstr3bData({
         client: selectedClient.folderName,
@@ -449,63 +455,148 @@ export default function Gstr3bPage({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Client Name</p>
-            <p className="text-sm font-semibold text-slate-800">{selectedClient.clientName}</p>
+      {/* ── Modern Header Card ──────────────────────────────────────── */}
+      <div
+        className="relative overflow-hidden rounded-2xl shadow-lg"
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2744 100%)",
+        }}
+      >
+        {/* Decorative accent line */}
+        <div
+          className="absolute left-0 top-0 h-full w-1 rounded-l-2xl"
+          style={{ background: "linear-gradient(180deg, #3b82f6, #06b6d4, #10b981)" }}
+        />
+        {/* Subtle grid texture */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.03]"
+          style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 24px)" }}
+        />
+
+        <div className="relative px-5 py-4">
+          {/* Top row: client info + period selectors + status */}
+          <div className="flex flex-wrap items-center gap-4">
+
+            {/* Client details cluster */}
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">GSTR-3B Return</p>
+              <p className="mt-0.5 truncate text-base font-bold text-white">{selectedClient.clientName}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wide"
+                  style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}
+                >
+                  {selectedClient.gstin}
+                </span>
+              </div>
+            </div>
+
+            {/* Period selectors */}
+            <div className="flex items-end gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Financial Year</span>
+                <select
+                  value={financialYear}
+                  onChange={(e) => onChangeFinancialYear(e.target.value)}
+                  className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                  {financialYearOptions.map((fy) => (
+                    <option key={fy} value={fy} className="bg-slate-900">{fy}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Month</span>
+                <select
+                  value={month}
+                  onChange={(e) => onChangeMonth(e.target.value)}
+                  className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m} className="bg-slate-900">{m}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* Status badge */}
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Status</span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                  data?.status === "filed"
+                    ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40"
+                    : "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  data?.status === "filed" ? "bg-emerald-400" : "bg-amber-400"
+                }`} />
+                {data?.status === "filed" ? "Filed" : "Pending"}
+              </span>
+            </div>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">GSTIN</p>
-            <p className="text-sm font-semibold text-slate-800">{selectedClient.gstin}</p>
-          </div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">
-            Financial Year
-            <select
-              value={financialYear}
-              onChange={(e) => onChangeFinancialYear(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700"
+
+          {/* Divider */}
+          <div className="my-3 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
+
+          {/* Action buttons row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="btn-generate-gstr3b"
+              type="button"
+              onClick={loadData}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg,#3b82f6,#2563eb)" }}
             >
-              {financialYearOptions.map((fy) => (
-                <option key={fy} value={fy}>
-                  {fy}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs uppercase tracking-wide text-slate-500">
-            Month
-            <select
-              value={month}
-              onChange={(e) => onChangeMonth(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700"
+              <RefreshCcw size={13} />
+              Generate GSTR-3B
+            </button>
+            <button
+              id="btn-save-gstr3b"
+              type="button"
+              onClick={saveAdjustments}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", color: "#e2e8f0" }}
             >
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Return Status</p>
-            <p className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${data?.status === "filed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-              {data?.status === "filed" ? "Filed" : "Pending"}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-start gap-2">
-            <button type="button" onClick={loadData} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700">
-              <RefreshCcw size={14} /> Generate GSTR-3B
+              <Save size={13} />
+              Save Changes
             </button>
-            <button type="button" onClick={exportData} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500">
-              <Download size={14} /> Export (PDF/Excel)
+            <button
+              id="btn-export-gstr3b"
+              type="button"
+              onClick={exportData}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", color: "#e2e8f0" }}
+            >
+              <Download size={13} />
+              Export
             </button>
-            <button type="button" onClick={markFiled} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500">
-              <FileCheck2 size={14} /> Mark as Filed
+            <button
+              id="btn-filed-gstr3b"
+              type="button"
+              onClick={markFiled}
+              disabled={loading || data?.status === "filed"}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+              style={{
+                background: data?.status === "filed"
+                  ? "rgba(16,185,129,0.12)"
+                  : "linear-gradient(135deg,#059669,#10b981)",
+                border: data?.status === "filed" ? "1px solid rgba(16,185,129,0.3)" : "none",
+                color: data?.status === "filed" ? "#6ee7b7" : "#fff",
+              }}
+            >
+              <FileCheck2 size={13} />
+              {data?.status === "filed" ? "Filed" : "Mark as Filed"}
             </button>
-            <button type="button" onClick={saveAdjustments} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-              <Save size={14} /> Save Changes
-            </button>
+            {loading && (
+              <span className="ml-1 text-[11px] text-slate-400 animate-pulse">Processing…</span>
+            )}
           </div>
         </div>
       </div>
@@ -525,6 +616,213 @@ export default function Gstr3bPage({
             <p className="mt-1 text-lg font-semibold text-slate-800">{currency(data.summary.netPayable)}</p>
           </div>
         </div>
+      )}
+
+      {/* ── ITC Breakdown: Previous Balance + Current ITC + Total ─────────── */}
+      {data && (
+        (() => {
+          const cf = data.carryForwardITC ?? { igst: 0, cgst: 0, sgst: 0 };
+          const cur = data.currentITC ?? safeTaxTriplet(data.inputGST);
+          const fin = data.finalITC ?? {
+            igst: (cf.igst ?? 0) + (cur.igst ?? 0),
+            cgst: (cf.cgst ?? 0) + (cur.cgst ?? 0),
+            sgst: (cf.sgst ?? 0) + (cur.sgst ?? 0),
+          };
+          const hasCf = cf.igst > 0 || cf.cgst > 0 || cf.sgst > 0;
+
+          const saveOpeningITC = async () => {
+            setLoading(true);
+            try {
+              await window.gstAPI.saveCarryForward({
+                client: selectedClient.folderName,
+                fy: financialYear,
+                month,
+                igst: openingItcDraft.igst,
+                cgst: openingItcDraft.cgst,
+                sgst: openingItcDraft.sgst,
+              });
+              setOpeningItcEdit(false);
+              await loadData();
+              onStatus(`Opening ITC balance saved for ${month}.`);
+            } catch (err) {
+              onStatus(err instanceof Error ? err.message : "Failed to save opening ITC balance.");
+            } finally {
+              setLoading(false);
+            }
+          };
+
+          const startEdit = () => {
+            setOpeningItcDraft({ igst: cf.igst, cgst: cf.cgst, sgst: cf.sgst });
+            setOpeningItcEdit(true);
+          };
+
+          return (
+            <div className={`rounded-2xl border p-4 shadow-sm ${
+              hasCf ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"
+            }`}>
+              {/* Header row */}
+              <div className="mb-3 flex items-center gap-2">
+                <TrendingUp size={15} className={hasCf ? "text-amber-600" : "text-slate-400"} />
+                <h3 className="text-sm font-semibold text-slate-800">ITC Breakdown</h3>
+                {hasCf && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    Carry Forward Active
+                  </span>
+                )}
+                <div className="ml-auto flex items-center gap-1">
+                  {!openingItcEdit ? (
+                    <button
+                      id="btn-edit-opening-itc"
+                      type="button"
+                      title="Enter / edit opening ITC balance for this month"
+                      onClick={startEdit}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+                    >
+                      <Pencil size={11} /> {hasCf ? "Edit Opening Balance" : "Enter Opening Balance"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Cancel"
+                      onClick={() => setOpeningItcEdit(false)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                    >
+                      <X size={11} /> Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Opening ITC editor ───────────────────────────────────────── */}
+              {openingItcEdit && (
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                  <p className="mb-2 text-[11px] font-semibold text-blue-700">
+                    Enter Opening / Carry-Forward ITC Balance for {month}
+                  </p>
+                  <p className="mb-3 text-[10px] text-blue-500">
+                    Use this to manually set the ITC balance you are carrying into this month from a prior period
+                    (e.g. first entry, software migration, or manual correction).
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <label className="text-xs font-medium text-slate-600">
+                      IGST
+                      <input
+                        id="opening-itc-igst"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={openingItcDraft.igst}
+                        onChange={(e) =>
+                          setOpeningItcDraft((p) => ({ ...p, igst: Math.max(0, Number(e.target.value) || 0) }))
+                        }
+                        className="mt-1 w-full rounded border border-blue-300 bg-white px-2 py-1.5 text-right text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      CGST
+                      <input
+                        id="opening-itc-cgst"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={openingItcDraft.cgst}
+                        onChange={(e) =>
+                          setOpeningItcDraft((p) => ({ ...p, cgst: Math.max(0, Number(e.target.value) || 0) }))
+                        }
+                        className="mt-1 w-full rounded border border-blue-300 bg-white px-2 py-1.5 text-right text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      SGST
+                      <input
+                        id="opening-itc-sgst"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={openingItcDraft.sgst}
+                        onChange={(e) =>
+                          setOpeningItcDraft((p) => ({ ...p, sgst: Math.max(0, Number(e.target.value) || 0) }))
+                        }
+                        className="mt-1 w-full rounded border border-blue-300 bg-white px-2 py-1.5 text-right text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-[10px] text-slate-500">
+                      Total: <span className="font-semibold text-slate-700">
+                        Rs {(openingItcDraft.igst + openingItcDraft.cgst + openingItcDraft.sgst).toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                      </span>
+                    </p>
+                    <button
+                      id="btn-save-opening-itc"
+                      type="button"
+                      onClick={saveOpeningITC}
+                      disabled={loading}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+                    >
+                      <CheckCircle size={12} /> Save Opening Balance
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ITC summary table ─────────────────────────────────────────── */}
+              <div className="overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">ITC Source</th>
+                      <th className="px-3 py-2 text-right">IGST</th>
+                      <th className="px-3 py-2 text-right">CGST</th>
+                      <th className="px-3 py-2 text-right">SGST</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-slate-100">
+                      <td className="px-3 py-2 text-slate-600">
+                        Opening / Previous Balance
+                        {!hasCf && <span className="ml-2 text-xs text-slate-400">(none — click Edit to enter)</span>}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${hasCf ? "text-amber-700 font-medium" : "text-slate-400"}`}>
+                        {hasCf ? currency(cf.igst) : "—"}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${hasCf ? "text-amber-700 font-medium" : "text-slate-400"}`}>
+                        {hasCf ? currency(cf.cgst) : "—"}
+                      </td>
+                      <td className={`px-3 py-2 text-right ${hasCf ? "text-amber-700 font-medium" : "text-slate-400"}`}>
+                        {hasCf ? currency(cf.sgst) : "—"}
+                      </td>
+                      <td className={`px-3 py-2 text-right font-semibold ${hasCf ? "text-amber-700" : "text-slate-400"}`}>
+                        {hasCf ? currency(cf.igst + cf.cgst + cf.sgst) : "—"}
+                      </td>
+                    </tr>
+                    <tr className="border-t border-slate-100">
+                      <td className="px-3 py-2 text-slate-600">Current Month ITC (Purchases)</td>
+                      <td className="px-3 py-2 text-right text-emerald-700">{currency(cur.igst)}</td>
+                      <td className="px-3 py-2 text-right text-emerald-700">{currency(cur.cgst)}</td>
+                      <td className="px-3 py-2 text-right text-emerald-700">{currency(cur.sgst)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-700">{currency(cur.igst + cur.cgst + cur.sgst)}</td>
+                    </tr>
+                    <tr className="border-t-2 border-slate-300 bg-slate-50">
+                      <td className="px-3 py-2 font-semibold text-slate-800">Total ITC Available</td>
+                      <td className="px-3 py-2 text-right font-bold text-cyan-700">{currency(fin.igst)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-cyan-700">{currency(fin.cgst)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-cyan-700">{currency(fin.sgst)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-cyan-700">{currency(fin.igst + fin.cgst + fin.sgst)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {hasCf && !openingItcEdit && (
+                <p className="mt-2 text-[11px] text-amber-600">
+                  ✦ Opening ITC of {currency(cf.igst + cf.cgst + cf.sgst)} has been added to this month's available credit.
+                </p>
+              )}
+            </div>
+          );
+        })()
       )}
 
       {(negativeItc || (data?.warnings.length || 0) > 0) && (

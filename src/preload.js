@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('gstAPI', {
   saveGstr3bData: (payload) => ipcRenderer.invoke('save-gstr3b-data', payload),
   exportGstr3b: (payload) => ipcRenderer.invoke('export-gstr3b', payload),
   markGstr3bFiled: (payload) => ipcRenderer.invoke('mark-gstr3b-filed', payload),
+  loadCarryForward: (payload) => ipcRenderer.invoke('load-carry-forward', payload),
+  saveCarryForward: (payload) => ipcRenderer.invoke('save-carry-forward', payload),
   loadReportsData: (payload) => ipcRenderer.invoke('load-reports-data', payload),
   exportMonthlyReport: (payload) => ipcRenderer.invoke('export-monthly-report', payload),
   exportGstSummaryPdf: (payload) => ipcRenderer.invoke('export-gst-summary-pdf', payload),
@@ -68,5 +70,8 @@ contextBridge.exposeInMainWorld('gstAPI', {
   changeDataDirectory: () => ipcRenderer.invoke('change-data-directory'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   openExternalUrl: (url) => ipcRenderer.send('open-external-url', url),
-  restartApp: () => ipcRenderer.send('restart-app')
+  restartApp: () => ipcRenderer.send('restart-app'),
+  getGstCredentials: () => ipcRenderer.invoke('get-gst-credentials'),
+  saveGstCredentials: (payload) => ipcRenderer.invoke('save-gst-credentials', payload),
+  openGstPortal: (payload) => ipcRenderer.send('open-gst-portal', payload || {}),
 });

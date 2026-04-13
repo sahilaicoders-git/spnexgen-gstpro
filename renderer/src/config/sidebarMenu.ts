@@ -85,5 +85,14 @@ export const sidebarMenuConfig: SidebarMenuGroup[] = [
       { id: "util-json", label: "JSON Viewer" },
     ],
   },
+  {
+    id: "online",
+    label: "Online",
+    icon: "wifi",
+    children: [
+      { id: "online-login", label: "Login to GST Portal" },
+      { id: "online-dashboard", label: "GST Dashboard" },
+    ],
+  },
   { id: "settings", label: "Settings", icon: "settings" },
 ];

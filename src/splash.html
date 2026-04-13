@@ -4,36 +4,108 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SPGST Boot</title>
+    <title>SPGST Pro</title>
     <link rel="stylesheet" href="./styles/splash.css" />
   </head>
   <body>
     <div class="scene" id="scene">
-      <div class="grid"></div>
-      <div class="orb orb-a"></div>
-      <div class="orb orb-b"></div>
 
-      <div class="brand-wrap">
-        <div class="logo-shell" aria-hidden="true">
-          <div class="logo-core">SG</div>
+      <!-- Ambient background layers -->
+      <div class="noise"></div>
+      <div class="grid-lines"></div>
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+
+      <!-- Scan line sweep -->
+      <div class="scan-line" id="scanLine"></div>
+
+      <!-- Main content card -->
+      <div class="card" id="card">
+
+        <!-- Top corner accent dots -->
+        <span class="corner corner-tl"></span>
+        <span class="corner corner-tr"></span>
+        <span class="corner corner-bl"></span>
+        <span class="corner corner-br"></span>
+
+        <!-- Logo mark -->
+        <div class="logo-ring" id="logoRing">
+          <div class="logo-inner">
+            <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 6L34 13.5V28.5L21 36L8 28.5V13.5L21 6Z"
+                    stroke="url(#hexGrad)" stroke-width="1.5" fill="none"/>
+              <path d="M21 12L29 16.5V25.5L21 30L13 25.5V16.5L21 12Z"
+                    fill="url(#hexFill)" opacity="0.3"/>
+              <text x="21" y="25" text-anchor="middle" font-size="11"
+                    font-weight="800" font-family="Inter, sans-serif"
+                    fill="url(#textGrad)" letter-spacing="0.5">SG</text>
+              <defs>
+                <linearGradient id="hexGrad" x1="0" y1="0" x2="42" y2="42">
+                  <stop offset="0%" stop-color="#38bdf8"/>
+                  <stop offset="50%" stop-color="#818cf8"/>
+                  <stop offset="100%" stop-color="#34d399"/>
+                </linearGradient>
+                <linearGradient id="hexFill" x1="0" y1="0" x2="42" y2="42">
+                  <stop offset="0%" stop-color="#38bdf8"/>
+                  <stop offset="100%" stop-color="#6366f1"/>
+                </linearGradient>
+                <linearGradient id="textGrad" x1="0" y1="0" x2="42" y2="0">
+                  <stop offset="0%" stop-color="#e0f2fe"/>
+                  <stop offset="100%" stop-color="#a5f3fc"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <!-- Spinning orbit ring -->
+          <div class="orbit-ring"></div>
+          <div class="orbit-dot"></div>
         </div>
 
-        <p class="kicker" id="kicker">Launching</p>
-        <h1 class="brand" id="brandTitle">SPGST</h1>
-        <p class="tagline" id="tagline">Smart GST Management</p>
-
-        <div class="loader-row" aria-label="Loading application">
-          <span class="spinner" aria-hidden="true"></span>
-          <span class="loader-text" id="loaderText">Loading</span>
-          <span class="dot dot-a" aria-hidden="true"></span>
-          <span class="dot dot-b" aria-hidden="true"></span>
-          <span class="dot dot-c" aria-hidden="true"></span>
+        <!-- Text content -->
+        <div class="text-block">
+          <p class="eyebrow" id="eyebrow">GST Management Software</p>
+          <h1 class="title" id="brandTitle">SPGST<span class="pro-badge">PRO</span></h1>
+          <p class="subtitle" id="tagline">Smart • Accurate • Professional</p>
         </div>
 
-        <div class="loader-track">
-          <div class="loader-progress" id="loader"></div>
+        <!-- Divider -->
+        <div class="divider">
+          <div class="divider-line"></div>
+          <div class="divider-dot"></div>
+          <div class="divider-line"></div>
         </div>
+
+        <!-- Status row -->
+        <div class="status-row">
+          <div class="status-indicator">
+            <span class="pulse-dot"></span>
+            <span class="status-text" id="loaderText">Initializing</span>
+          </div>
+          <span class="version-tag" id="versionTag">v2.0.4</span>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="progress-track">
+          <div class="progress-fill" id="loader"></div>
+          <div class="progress-shimmer"></div>
+        </div>
+
+        <!-- Step labels -->
+        <div class="step-labels">
+          <span class="step" id="step1">Loading</span>
+          <span class="step" id="step2">Connecting</span>
+          <span class="step" id="step3">Ready</span>
+        </div>
+
       </div>
+
+      <!-- Bottom brand strip -->
+      <div class="brand-strip" id="brandStrip">
+        <span>Powered by</span>
+        <strong>SPNextGen Technologies</strong>
+      </div>
+
     </div>
 
     <script src="./splash.js"></script>

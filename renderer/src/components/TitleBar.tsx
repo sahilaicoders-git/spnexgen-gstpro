@@ -34,11 +34,12 @@ function RestoreIcon() {
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* Back window */}
       <rect x="2.5" y="0.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" fill="none" />
-      {/* Front window */}
-      <rect x="0.5" y="2.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" fill="var(--titlebar-bg)" />
+      {/* Front window — matches titlebar dark bg */}
+      <rect x="0.5" y="2.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" fill="#0f172a" />
     </svg>
   );
 }
+
 
 function CloseIcon() {
   return (

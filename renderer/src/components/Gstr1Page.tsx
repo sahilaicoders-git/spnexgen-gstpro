@@ -803,66 +803,152 @@ export default function Gstr1Page({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Client Name</p>
-            <p className="text-sm font-semibold text-slate-800">{selectedClient.clientName}</p>
+      {/* ── Modern Header Card ──────────────────────────────────────── */}
+      <div
+        className="relative overflow-hidden rounded-2xl shadow-lg"
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c2340 100%)",
+        }}
+      >
+        {/* Decorative accent line */}
+        <div
+          className="absolute left-0 top-0 h-full w-1 rounded-l-2xl"
+          style={{ background: "linear-gradient(180deg, #6366f1, #3b82f6, #06b6d4)" }}
+        />
+        {/* Subtle grid texture */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.03]"
+          style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 24px)" }}
+        />
+
+        <div className="relative px-5 py-4">
+          {/* Top row: client info + period selectors + status */}
+          <div className="flex flex-wrap items-center gap-4">
+
+            {/* Client details cluster */}
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-400">GSTR-1 Return</p>
+              <p className="mt-0.5 truncate text-base font-bold text-white">{selectedClient.clientName}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wide"
+                  style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)" }}
+                >
+                  {selectedClient.gstin}
+                </span>
+              </div>
+            </div>
+
+            {/* Period selectors */}
+            <div className="flex items-end gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Financial Year</span>
+                <select
+                  value={financialYear}
+                  onChange={(e) => onChangeFinancialYear(e.target.value)}
+                  className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                  {financialYearOptions.map((fy) => (
+                    <option key={fy} value={fy} className="bg-slate-900">{fy}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Month</span>
+                <select
+                  value={month}
+                  onChange={(e) => onChangeMonth(e.target.value)}
+                  className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                  {monthOptions.map((m) => (
+                    <option key={m} value={m} className="bg-slate-900">{m}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* Status badge */}
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Status</span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                  data?.status === "filed"
+                    ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40"
+                    : "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  data?.status === "filed" ? "bg-emerald-400" : "bg-amber-400"
+                }`} />
+                {data?.status === "filed" ? "Filed" : "Pending"}
+              </span>
+            </div>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">GSTIN</p>
-            <p className="text-sm font-semibold text-slate-800">{selectedClient.gstin}</p>
-          </div>
-          <label className="text-xs uppercase tracking-wide text-slate-500">
-            Financial Year
-            <select
-              value={financialYear}
-              onChange={(e) => onChangeFinancialYear(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700"
+
+          {/* Divider */}
+          <div className="my-3 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
+
+          {/* Action buttons row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="btn-generate-gstr1"
+              type="button"
+              onClick={loadGstr1}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)" }}
             >
-              {financialYearOptions.map((fy) => (
-                <option key={fy} value={fy}>
-                  {fy}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs uppercase tracking-wide text-slate-500">
-            Month
-            <select
-              value={month}
-              onChange={(e) => onChangeMonth(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1 text-sm font-medium text-slate-700"
+              <RefreshCcw size={13} />
+              Generate GSTR-1
+            </button>
+            <button
+              id="btn-save-gstr1"
+              type="button"
+              onClick={saveEdits}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", color: "#e2e8f0" }}
             >
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Return Status</p>
-            <p className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${data?.status === "filed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-              {data?.status === "filed" ? "Filed" : "Pending"}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-start gap-2">
-            <button type="button" onClick={loadGstr1} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700">
-              <RefreshCcw size={14} /> Generate GSTR-1
+              <Save size={13} />
+              Save Changes
             </button>
-            <button type="button" onClick={exportExcel} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500">
-              <Download size={14} /> Export Excel
+            <button
+              id="btn-export-gstr1"
+              type="button"
+              onClick={exportExcel}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.13)", color: "#e2e8f0" }}
+            >
+              <Download size={13} />
+              Export Excel
             </button>
-            <button type="button" onClick={markFiled} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500">
-              <FileCheck2 size={14} /> Mark as Filed
+            <button
+              id="btn-filed-gstr1"
+              type="button"
+              onClick={markFiled}
+              disabled={loading || data?.status === "filed"}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+              style={{
+                background: data?.status === "filed"
+                  ? "rgba(16,185,129,0.12)"
+                  : "linear-gradient(135deg,#059669,#10b981)",
+                border: data?.status === "filed" ? "1px solid rgba(16,185,129,0.3)" : "none",
+                color: data?.status === "filed" ? "#6ee7b7" : "#fff",
+              }}
+            >
+              <FileCheck2 size={13} />
+              {data?.status === "filed" ? "Filed" : "Mark as Filed"}
             </button>
-            <button type="button" onClick={saveEdits} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-              <Save size={14} /> Save Changes
-            </button>
+            {loading && (
+              <span className="ml-1 text-[11px] text-slate-400 animate-pulse">Processing…</span>
+            )}
           </div>
         </div>
       </div>
+
 
       {data && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

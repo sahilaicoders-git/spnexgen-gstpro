@@ -197,26 +197,26 @@ select {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   CUSTOM TITLE BAR
+   CUSTOM TITLE BAR  — Modern Dark Premium
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  --titlebar-height: 38px;
-  --titlebar-bg: #ffffff;
-  --titlebar-text: #111827;
-  --titlebar-icon-rgb: 30, 41, 59;
-  --titlebar-btn-size: 46px;
-  --titlebar-btn-icon-color: #4b5563;
+  --titlebar-height: 36px;
+  --titlebar-bg: linear-gradient(135deg, #0f172a 0%, #1a2540 60%, #111827 100%);
+  --titlebar-text: #e2e8f0;
+  --titlebar-icon-rgb: 226, 232, 240;
+  --titlebar-btn-size: 44px;
+  --titlebar-btn-icon-color: #64748b;
 }
 
 html.dark {
-  --titlebar-bg: #0d1117;
+  --titlebar-bg: linear-gradient(135deg, #0a0f1e 0%, #111827 60%, #0b0f1a 100%);
   --titlebar-text: #e2e8f0;
   --titlebar-icon-rgb: 226, 232, 240;
-  --titlebar-btn-icon-color: #94a3b8;
+  --titlebar-btn-icon-color: #475569;
 }
 
-/* Outer shell — full-height flex column */
+/* Outer shell */
 .app-with-titlebar {
   display: flex;
   flex-direction: column;
@@ -224,39 +224,50 @@ html.dark {
   overflow: hidden;
 }
 
-/* Content area that scrolls below the title bar */
 .app-content-area {
   flex: 1;
   overflow: hidden;
   display: flex;
 }
 
-/* ── Title bar container ─────────────────────────────────────────── */
+/* ── Title bar container ───────────────────────────────────────── */
 .titlebar {
   height: var(--titlebar-height);
   min-height: var(--titlebar-height);
-  background: var(--titlebar-bg);
-  border-bottom: 1px solid rgba(var(--titlebar-icon-rgb), 0.1);
+  background: linear-gradient(135deg, #0f172a 0%, #1a2540 60%, #111827 100%);
   display: flex;
   align-items: center;
   user-select: none;
-  /* Make the whole bar draggable — buttons override this below */
   -webkit-app-region: drag;
   position: relative;
   z-index: 9999;
-  transition: background 0.3s ease, border-color 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05), 0 2px 10px rgba(0,0,0,0.4);
 }
 
-html.dark .titlebar {
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+/* Light theme override */
+.titlebar[data-dark="false"] {
+  background: #ffffff;
+  box-shadow: 0 1px 0 #e5e7eb, 0 1px 4px rgba(0,0,0,0.06);
 }
 
-/* ── Brand section (icon + name) ────────────────────────────────── */
+/* Thin rainbow accent line at bottom of titlebar */
+.titlebar::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 35%, #10b981 70%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ── Brand section ───────────────────────────────────────────────── */
 .titlebar-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 0 14px;
   height: 100%;
   -webkit-app-region: drag;
@@ -264,23 +275,28 @@ html.dark .titlebar {
 }
 
 .titlebar-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
   border-radius: 3px;
-  opacity: 0.9;
+  opacity: 0.85;
   pointer-events: none;
 }
 
 .titlebar-title {
   font-family: Inter, "Segoe UI", system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--titlebar-text);
-  opacity: 0.85;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* Light mode: dark title text */
+.titlebar[data-dark="false"] .titlebar-title {
+  color: #374151;
 }
 
 /* ── Draggable spacer ─────────────────────────────────────────── */
@@ -293,10 +309,11 @@ html.dark .titlebar {
 /* ── Window control buttons ─────────────────────────────────────── */
 .titlebar-controls {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   height: 100%;
   -webkit-app-region: no-drag;
   flex-shrink: 0;
+  gap: 0;
 }
 
 .titlebar-btn {
@@ -315,46 +332,36 @@ html.dark .titlebar {
   position: relative;
 }
 
+/* Light mode: darker icon default */
+.titlebar[data-dark="false"] .titlebar-btn {
+  color: #6b7280;
+}
+
 .titlebar-btn svg {
   pointer-events: none;
 }
 
-/* Minimize — amber/yellow hover */
+/* Minimize — amber hover */
 .titlebar-btn--minimize:hover {
-  background: rgba(251, 191, 36, 0.15);
-  color: #d97706;
-}
-
-html.dark .titlebar-btn--minimize:hover {
-  background: rgba(251, 191, 36, 0.12);
+  background: rgba(234,179,8,0.18);
   color: #fbbf24;
 }
 
-/* Maximize — green hover */
+/* Maximize — teal/green hover */
 .titlebar-btn--maximize:hover {
-  background: rgba(34, 197, 94, 0.15);
-  color: #16a34a;
+  background: rgba(16,185,129,0.18);
+  color: #34d399;
 }
 
-html.dark .titlebar-btn--maximize:hover {
-  background: rgba(34, 197, 94, 0.12);
-  color: #4ade80;
-}
-
-/* Close — red hover (brighter bg + white icon) */
+/* Close — red hover */
 .titlebar-btn--close:hover {
-  background: #ef4444;
-  color: #ffffff;
-}
-
-html.dark .titlebar-btn--close:hover {
-  background: #dc2626;
+  background: rgba(239,68,68,0.85);
   color: #ffffff;
 }
 
 /* Active press feel */
 .titlebar-btn:active {
-  opacity: 0.75;
-  transform: scale(0.92);
+  opacity: 0.7;
+  transform: scale(0.9);
 }
 

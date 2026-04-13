@@ -259,6 +259,14 @@ function setupIpcHandlers() {
     return clientService.markGstr3bFiled(payload || {});
   }));
 
+  registerHandle('load-carry-forward', withService((_, payload) => {
+    return clientService.loadCarryForward(payload || {});
+  }));
+
+  registerHandle('save-carry-forward', withService((_, payload) => {
+    return clientService.saveCarryForward(payload || {});
+  }));
+
   registerHandle('load-reports-data', withService((_, payload) => {
     return clientService.loadReportsData(payload || {});
   }));
@@ -419,6 +427,165 @@ function setupIpcHandlers() {
       req.end();
     });
   });
+
+
+  // ── GST Portal Credentials ─────────────────────────────────────────────────
+  registerHandle('get-gst-credentials', () => {
+    const settings = readAppSettings();
+    return {
+      gst_username: settings.gst_username || '',
+      // Never expose password back to renderer – send a masked flag instead
+      has_password: Boolean(settings.gst_password),
+    };
+  });
+
+  registerHandle('save-gst-credentials', (_, payload) => {
+    const { gst_username, gst_password } = payload || {};
+    const settings = readAppSettings();
+    const next = { ...settings };
+    if (typeof gst_username === 'string') next.gst_username = gst_username.trim();
+    if (typeof gst_password === 'string' && gst_password.length > 0) next.gst_password = gst_password;
+    writeAppSettings(next);
+    return { ok: true };
+  });
+
+  // ── Open GST Portal ────────────────────────────────────────────────────────
+  ipcMain.removeAllListeners('open-gst-portal');
+  ipcMain.on('open-gst-portal', (_, { targetUrl } = {}) => {
+    // Read credentials fresh each time
+    const settings = readAppSettings();
+    const username = (settings.gst_username || '').trim();
+    const password = settings.gst_password || '';
+    const portalUrl = targetUrl || 'https://services.gst.gov.in/services/login';
+
+    const win = new BrowserWindow({
+      width: 1280,
+      height: 820,
+      title: 'GST Portal — SPGST Pro',
+      autoHideMenuBar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true,
+        // Allow cookies / session to persist between opens
+        partition: 'persist:gstportal',
+      },
+    });
+
+    win.loadURL(portalUrl);
+
+    // ── Autofill helper ────────────────────────────────────────────────────
+    // GST portal is Angular – the form renders AFTER did-finish-load.
+    // We inject a polling script that retries every 400 ms (up to 15 s).
+    const injectAutofill = () => {
+      const currentUrl = win.webContents.getURL();
+      const isLoginPage =
+        currentUrl.includes('services.gst.gov.in/services/login') ||
+        (currentUrl.includes('gst.gov.in') && currentUrl.includes('login'));
+
+      if (!isLoginPage) return;
+      if (!username && !password) return;
+
+      // Sanitise – JSON.stringify escapes quotes/slashes safely
+      const safeUser = JSON.stringify(username);
+      const safePass = JSON.stringify(password);
+
+      win.webContents.executeJavaScript(`
+        (function startAutofill() {
+          // Prevent multiple loops if this is injected more than once
+          if (window.__spgstAutofillRunning) return;
+          window.__spgstAutofillRunning = true;
+
+          var maxAttempts = 30;   // 30 × 400 ms = 12 seconds
+          var attempts    = 0;
+          var filled      = false;
+
+          function tryFill() {
+            if (filled) return;
+            attempts++;
+
+            // ── Try every known selector for the GST portal fields ──────
+            var u =
+              document.getElementById('user_name') ||
+              document.getElementById('username') ||
+              document.getElementById('userid') ||
+              document.querySelector('input[name="username"]') ||
+              document.querySelector('input[name="user_name"]') ||
+              document.querySelector('input[formcontrolname="username"]') ||
+              document.querySelector('input[placeholder*="Username" i]') ||
+              document.querySelector('input[placeholder*="User Name" i]') ||
+              document.querySelector('input[type="text"]');
+
+            var p =
+              document.getElementById('user_pass') ||
+              document.getElementById('password') ||
+              document.querySelector('input[name="password"]') ||
+              document.querySelector('input[name="user_pass"]') ||
+              document.querySelector('input[formcontrolname="password"]') ||
+              document.querySelector('input[placeholder*="Password" i]') ||
+              document.querySelector('input[type="password"]');
+
+            if (u || p) {
+              // Native value setter – works with Angular/React controlled inputs
+              function setNativeValue(el, val) {
+                var nativeInputValueSetter =
+                  Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                nativeInputValueSetter.call(el, val);
+                el.dispatchEvent(new Event('input',  { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+              }
+
+              if (u && ${safeUser}) setNativeValue(u, ${safeUser});
+              if (p && ${safePass}) setNativeValue(p, ${safePass});
+
+              filled = true;
+
+              // Show success banner
+              if (!document.getElementById('__spgst_banner')) {
+                var banner = document.createElement('div');
+                banner.id = '__spgst_banner';
+                banner.innerHTML =
+                  '<span style="font-size:15px;margin-right:6px">✓</span>' +
+                  '<strong>SPGST Pro:</strong> Credentials auto-filled — please enter the CAPTCHA and click Login.';
+                Object.assign(banner.style, {
+                  position: 'fixed', top: '0', left: '0', right: '0',
+                  zIndex: '2147483647',
+                  background: 'linear-gradient(90deg,#0f2f57,#1a4a7a)',
+                  color: '#7dd3fc',
+                  textAlign: 'center',
+                  padding: '10px 16px',
+                  fontSize: '13px',
+                  fontFamily: 'Inter,"Segoe UI",sans-serif',
+                  boxShadow: '0 3px 12px rgba(0,0,0,0.5)',
+                  letterSpacing: '0.01em',
+                });
+                document.body.prepend(banner);
+                setTimeout(function() { banner.remove(); }, 9000);
+              }
+            }
+
+            if (!filled && attempts < maxAttempts) {
+              setTimeout(tryFill, 400);
+            } else if (!filled) {
+              window.__spgstAutofillRunning = false; // reset so next navigation can retry
+            }
+          }
+
+          tryFill();
+        })();
+      `).catch(() => {});
+    };
+
+    // Fire on both events – whichever comes last on an SPA wins
+    win.webContents.on('did-finish-load', injectAutofill);
+    win.webContents.on('dom-ready',       injectAutofill);
+
+    // Also re-trigger on any navigation within the portal
+    win.webContents.on('did-navigate-in-page', injectAutofill);
+    win.webContents.on('did-navigate',          injectAutofill);
+  });
+
 
   ipcHandlersReady = true;
 }

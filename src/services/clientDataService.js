@@ -685,6 +685,107 @@ function createClientDataService(baseDataDir) {
     fs.mkdirSync(clientsRoot, { recursive: true });
   }
 
+  // ── Carry-forward ITC helpers ──────────────────────────────────────────────
+
+  function getCarryForwardFilePath(folderName) {
+    return path.join(clientsRoot, folderName, 'carry_forward.json');
+  }
+
+  function readCarryForwardFromDisk(folderName) {
+    const filePath = getCarryForwardFilePath(folderName);
+    if (!fs.existsSync(filePath)) return {};
+    try {
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeCarryForwardToDisk(folderName, data) {
+    const filePath = getCarryForwardFilePath(folderName);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  }
+
+  /**
+   * Returns the ITC balance stored for a specific FY + month.
+   * Used to get the PREVIOUS month's leftover before building the snapshot.
+   */
+  function getStoredCarryForward(folderName, financialYear, month) {
+    const data = readCarryForwardFromDisk(folderName);
+    const fyData = data[financialYear];
+    if (!fyData || typeof fyData !== 'object') return { igst: 0, cgst: 0, sgst: 0 };
+    const entry = fyData[month];
+    if (!entry || typeof entry !== 'object') return { igst: 0, cgst: 0, sgst: 0 };
+    return {
+      igst: Math.max(0, to2(toNum(entry.igst))),
+      cgst: Math.max(0, to2(toNum(entry.cgst))),
+      sgst: Math.max(0, to2(toNum(entry.sgst)))
+    };
+  }
+
+  /**
+   * Saves remaining ITC for a FY + month (the next-month carry-forward).
+   * Clamps values to >= 0. Never allows negative carry-forward.
+   */
+  function setStoredCarryForward(folderName, financialYear, month, igst, cgst, sgst) {
+    const safeIgst = Math.max(0, to2(toNum(igst)));
+    const safeCgst = Math.max(0, to2(toNum(cgst)));
+    const safeSgst = Math.max(0, to2(toNum(sgst)));
+    const data = readCarryForwardFromDisk(folderName);
+    if (!data[financialYear] || typeof data[financialYear] !== 'object') {
+      data[financialYear] = {};
+    }
+    data[financialYear][month] = { igst: safeIgst, cgst: safeCgst, sgst: safeSgst };
+    writeCarryForwardToDisk(folderName, data);
+  }
+
+  /**
+   * IPC service: load the previous month's carry-forward balance.
+   * Accepts { gstin, fy, month } or { client, fy, month }.
+   */
+  function loadCarryForward(input) {
+    const normalized = normalizeGstr3bInput(input || {});
+    const ctx = getClientFolderContextByGstin(normalized.gstin);
+    // We want the carry-forward that was stored *for* this month
+    // (i.e. the leftover from the previous month that rolls into this month)
+    const stored = getStoredCarryForward(ctx.folderName, normalized.financialYear, normalized.month);
+    return {
+      ok: true,
+      financialYear: normalized.financialYear,
+      month: normalized.month,
+      igst: stored.igst,
+      cgst: stored.cgst,
+      sgst: stored.sgst
+    };
+  }
+
+  /**
+   * IPC service: save remaining ITC as the next month's carry-forward.
+   * Accepts { gstin, fy, month, igst, cgst, sgst }.
+   */
+  function saveCarryForward(input) {
+    const normalized = normalizeGstr3bInput(input || {});
+    const ctx = getClientFolderContextByGstin(normalized.gstin);
+    setStoredCarryForward(
+      ctx.folderName,
+      normalized.financialYear,
+      normalized.month,
+      toNum(input.igst),
+      toNum(input.cgst),
+      toNum(input.sgst)
+    );
+    return {
+      ok: true,
+      financialYear: normalized.financialYear,
+      month: normalized.month,
+      igst: Math.max(0, to2(toNum(input.igst))),
+      cgst: Math.max(0, to2(toNum(input.cgst))),
+      sgst: Math.max(0, to2(toNum(input.sgst)))
+    };
+  }
+
   function getClientFolders() {
     ensureClientsRoot();
     return fs.readdirSync(clientsRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
@@ -2195,7 +2296,7 @@ function createClientDataService(baseDataDir) {
     );
   }
 
-  function buildGstr3bSnapshot(payload, sellerGstin) {
+  function buildGstr3bSnapshot(payload, sellerGstin, carryForwardITC) {
     const salesB2b = Array.isArray(payload?.sales?.b2b) ? payload.sales.b2b : [];
     const salesB2c = Array.isArray(payload?.sales?.b2c) ? payload.sales.b2c : [];
     const purchases = Array.isArray(payload?.purchases) ? payload.purchases : [];
@@ -2285,10 +2386,27 @@ function createClientDataService(baseDataDir) {
 
     const section32Rows = Array.from(stateSummaryMap.values()).sort((a, b) => a.state.localeCompare(b.state));
 
-    const itcAvailable = {
+    // Carry-forward balance from previous month (old setoff)
+    const cfITC = carryForwardITC && typeof carryForwardITC === 'object'
+      ? {
+          igst: Math.max(0, to2(toNum(carryForwardITC.igst))),
+          cgst: Math.max(0, to2(toNum(carryForwardITC.cgst))),
+          sgst: Math.max(0, to2(toNum(carryForwardITC.sgst)))
+        }
+      : { igst: 0, cgst: 0, sgst: 0 };
+
+    // Current month ITC (from purchases only, before carry-forward merge)
+    const currentITC = {
       igst: to2(purchaseTotals.igst),
       cgst: to2(purchaseTotals.cgst),
       sgst: to2(purchaseTotals.sgst)
+    };
+
+    // finalITC = current + carry-forward (merged total available ITC)
+    const itcAvailable = {
+      igst: to2(currentITC.igst + cfITC.igst),
+      cgst: to2(currentITC.cgst + cfITC.cgst),
+      sgst: to2(currentITC.sgst + cfITC.sgst)
     };
 
     const itcReversed = {
@@ -2496,6 +2614,10 @@ function createClientDataService(baseDataDir) {
       warnings,
       adjustments,
       utilizationMatrix,
+      // ITC breakdown for UI display
+      carryForwardITC: { igst: cfITC.igst, cgst: cfITC.cgst, sgst: cfITC.sgst },
+      currentITC:      { igst: currentITC.igst, cgst: currentITC.cgst, sgst: currentITC.sgst },
+      finalITC:        { igst: itcAvailable.igst, cgst: itcAvailable.cgst, sgst: itcAvailable.sgst },
       outputGST: {
         igst: taxPayable.igst,
         cgst: taxPayable.cgst,
@@ -2582,7 +2704,12 @@ function createClientDataService(baseDataDir) {
     const normalized = normalizeGstr3bInput(input || {});
     const context = getMonthFileContext(normalized.gstin, normalized.financialYear, normalized.month);
     const payload = readMonthPayload(context);
-    const snapshot = buildGstr3bSnapshot(payload, context.gstin);
+
+    // carry_forward[FY][month] = the ITC balance available AT THE START of that month
+    // (i.e. leftover from the previous month's setoff, or manually entered opening balance)
+    const carryForwardITC = getStoredCarryForward(context.folderName, normalized.financialYear, normalized.month);
+
+    const snapshot = buildGstr3bSnapshot(payload, context.gstin, carryForwardITC);
 
     return {
       ok: true,
@@ -2603,7 +2730,54 @@ function createClientDataService(baseDataDir) {
     payload.returns.gstr3b_adjustments = sanitizeGstr3bAdjustments(input.adjustments || {});
     writeMonthPayload(context, payload);
 
-    return loadGstr3bData(normalized);
+    // Reload fresh snapshot (includes carry-forward)
+    const result = loadGstr3bData(normalized);
+
+    // Auto-save this month's remaining ITC as next month's carry-forward
+    // (only if the next month is not already marked as filed)
+    try {
+      const nextPeriod = (() => {
+        const idx = MONTHS.indexOf(normalized.month);
+        if (idx < 0) return null;
+        if (idx < MONTHS.length - 1) {
+          return { financialYear: normalized.financialYear, month: MONTHS[idx + 1] };
+        }
+        // March → April of next FY
+        const fyMatch = String(normalized.financialYear || '').match(/^FY_(\d{4})-(\d{2})$/);
+        if (!fyMatch) return null;
+        const nextStartYear = Number(fyMatch[1]) + 1;
+        const endShort = String((nextStartYear + 1) % 100).padStart(2, '0');
+        return { financialYear: `FY_${nextStartYear}-${endShort}`, month: 'April' };
+      })();
+
+      if (nextPeriod) {
+        // Guard: skip if next month is already filed (don't overwrite a filed month's data)
+        let nextMonthFiled = false;
+        try {
+          const nextCtx = getMonthFileContext(normalized.gstin, nextPeriod.financialYear, nextPeriod.month);
+          const nextPayload = readMonthPayload(nextCtx);
+          nextMonthFiled = String(nextPayload?.returns?.gstr3b || '').toLowerCase() === 'filed';
+        } catch {
+          nextMonthFiled = false;
+        }
+
+        if (!nextMonthFiled) {
+          const bal = result.balance_itc || { igst: 0, cgst: 0, sgst: 0 };
+          setStoredCarryForward(
+            context.folderName,
+            nextPeriod.financialYear,
+            nextPeriod.month,
+            bal.igst,
+            bal.cgst,
+            bal.sgst
+          );
+        }
+      }
+    } catch {
+      // Non-fatal — carry-forward auto-save failure should not break the save
+    }
+
+    return result;
   }
 
   function markGstr3bFiled(input) {
@@ -3594,6 +3768,8 @@ function createClientDataService(baseDataDir) {
     saveGstr3bData,
     exportGstr3b,
     markGstr3bFiled,
+    loadCarryForward,
+    saveCarryForward,
     calculateGst,
     generateInvoiceNumber,
     restoreData,

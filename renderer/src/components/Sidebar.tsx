@@ -13,6 +13,7 @@ import {
   Settings,
   UserRoundSearch,
   Users,
+  Wifi,
   X,
   Zap,
 } from "lucide-react";
@@ -40,6 +41,7 @@ const iconMap = {
   "bar-chart": BarChart3,
   database: Database,
   calculator: Calculator,
+  wifi: Wifi,
   settings: Settings,
 } as const;
 

@@ -340,6 +340,12 @@ export type Gstr3bDataResponse = {
   filingHistory: Gstr3bFilingHistoryRow[];
   warnings: string[];
   adjustments: Gstr3bAdjustments;
+  /** ITC carried forward from the previous month (old setoff balance) */
+  carryForwardITC: { igst: number; cgst: number; sgst: number };
+  /** ITC from current month purchases only */
+  currentITC: { igst: number; cgst: number; sgst: number };
+  /** Total ITC available = carryForwardITC + currentITC */
+  finalITC: { igst: number; cgst: number; sgst: number };
   outputGST: { igst: number; cgst: number; sgst: number };
   inputGST: { igst: number; cgst: number; sgst: number };
   netGST: { igst: number; cgst: number; sgst: number };
@@ -692,6 +698,25 @@ declare global {
         fy?: string;
         month: string;
       }) => Promise<{ ok: boolean; status: string; history: Gstr3bFilingHistoryRow[] }>;
+      /** Load carry-forward ITC balance that was stored for a given FY/month */
+      loadCarryForward: (payload: {
+        gstin?: string;
+        client?: string;
+        financialYear?: string;
+        fy?: string;
+        month: string;
+      }) => Promise<{ ok: boolean; financialYear: string; month: string; igst: number; cgst: number; sgst: number }>;
+      /** Persist a remaining ITC balance as carry-forward for the given FY/month */
+      saveCarryForward: (payload: {
+        gstin?: string;
+        client?: string;
+        financialYear?: string;
+        fy?: string;
+        month: string;
+        igst: number;
+        cgst: number;
+        sgst: number;
+      }) => Promise<{ ok: boolean; financialYear: string; month: string; igst: number; cgst: number; sgst: number }>;
       loadReportsData: (payload: {
         gstin?: string;
         client?: string;
@@ -794,6 +819,12 @@ declare global {
       }>;
       openExternalUrl: (url: string) => void;
       restartApp: () => void;
+      /** Get saved GST portal credentials (password never returned — has_password flag only) */
+      getGstCredentials: () => Promise<{ gst_username: string; has_password: boolean }>;
+      /** Save GST portal credentials to local app settings */
+      saveGstCredentials: (payload: { gst_username: string; gst_password?: string }) => Promise<{ ok: boolean }>;
+      /** Open the GST portal in a new Electron window with auto-fill */
+      openGstPortal: (payload?: { targetUrl?: string }) => void;
     };
     windowControls: {
       minimize: () => void;

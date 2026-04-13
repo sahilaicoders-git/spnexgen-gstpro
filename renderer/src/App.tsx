@@ -6,6 +6,7 @@ import DashboardPage from "./components/DashboardPage";
 import Gstr1Page from "./components/Gstr1Page";
 import Gstr3bPage from "./components/Gstr3bPage";
 import GstSalesModule from "./components/GstSalesModule";
+import GstOnlinePage from "./components/GstOnlinePage";
 import PurchaseModule from "./components/PurchaseModule";
 import ReportsPreviewDashboard from "./components/ReportsPreviewDashboard";
 import ReportsModule from "./components/ReportsModule";
@@ -498,6 +499,10 @@ export default function App() {
           onStatus={setStatusText}
         />
       );
+    }
+
+    if (activeMenu === "online-login" || activeMenu === "online-dashboard") {
+      return <GstOnlinePage initialMode={activeMenu === "online-login" ? "login" : "dashboard"} />;
     }
 
     if (activeMenu === "settings") {
