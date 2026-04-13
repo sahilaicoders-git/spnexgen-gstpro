@@ -63,5 +63,10 @@ contextBridge.exposeInMainWorld('gstAPI', {
   generateMockData: (payload) => ipcRenderer.invoke('generate-mock-data', payload),
   generatePurchaseMock: (payload) => ipcRenderer.invoke('generate-purchase-mock', payload),
   backupDataFolder: () => ipcRenderer.invoke('backup-data-folder'),
-  notifyClientSelected: (client) => ipcRenderer.send('client-selected', client)
+  notifyClientSelected: (client) => ipcRenderer.send('client-selected', client),
+  getAppSettings: () => ipcRenderer.invoke('get-app-settings'),
+  changeDataDirectory: () => ipcRenderer.invoke('change-data-directory'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  openExternalUrl: (url) => ipcRenderer.send('open-external-url', url),
+  restartApp: () => ipcRenderer.send('restart-app')
 });

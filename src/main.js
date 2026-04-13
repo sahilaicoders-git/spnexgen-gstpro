@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const { createClientDataService } = require('./services/clientDataService');
 const { initTestClients } = require('./scripts/initTestClients');
 
@@ -345,6 +346,81 @@ function setupIpcHandlers() {
     return activeClient;
   });
 
+  // ── App settings ──────────────────────────────────────────────────────────
+  registerHandle('get-app-settings', () => {
+    const settings = readAppSettings();
+    return {
+      dataDirectory: settings.dataDirectory || dataRoot || '',
+      appVersion: app.getVersion()
+    };
+  });
+
+  registerHandle('change-data-directory', async () => {
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select New SPGST Data Directory',
+      properties: ['openDirectory', 'createDirectory']
+    });
+
+    if (picked.canceled || !picked.filePaths[0]) {
+      return { changed: false, newPath: dataRoot, needsRestart: false };
+    }
+
+    const newPath = picked.filePaths[0];
+    if (newPath === dataRoot) {
+      return { changed: false, newPath, needsRestart: false };
+    }
+
+    const settings = readAppSettings();
+    writeAppSettings({ ...settings, dataDirectory: newPath });
+    return { changed: true, newPath, needsRestart: true };
+  });
+
+  registerHandle('check-for-updates', () => {
+    return new Promise((resolve) => {
+      const currentVersion = app.getVersion();
+      const options = {
+        hostname: 'api.github.com',
+        path: '/repos/sahilaicoders-git/spnexgen-gstpro/releases/latest',
+        method: 'GET',
+        headers: { 'User-Agent': 'SPGST-Pro-App' }
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const release = JSON.parse(data);
+            const latestVersion = (release.tag_name || '').replace(/^v/, '');
+            const hasUpdate = latestVersion && latestVersion !== currentVersion &&
+              latestVersion.localeCompare(currentVersion, undefined, { numeric: true, sensitivity: 'base' }) > 0;
+            resolve({
+              ok: true,
+              currentVersion,
+              latestVersion: latestVersion || currentVersion,
+              hasUpdate: !!hasUpdate,
+              releaseUrl: release.html_url || '',
+              releaseNotes: release.body || ''
+            });
+          } catch {
+            resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '' });
+          }
+        });
+      });
+
+      req.on('error', () => {
+        resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '' });
+      });
+
+      req.setTimeout(8000, () => {
+        req.destroy();
+        resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '' });
+      });
+
+      req.end();
+    });
+  });
+
   ipcHandlersReady = true;
 }
 
@@ -515,6 +591,17 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+});
+
+ipcMain.on('open-external-url', (_, url) => {
+  if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+    shell.openExternal(url);
+  }
+});
+
+ipcMain.on('restart-app', () => {
+  app.relaunch();
+  app.exit(0);
 });
 
 ipcMain.handle('window-is-maximized', () => {

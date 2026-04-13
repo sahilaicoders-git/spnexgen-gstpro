@@ -782,6 +782,18 @@ declare global {
       }) => Promise<{
         total_generated: number;
       }>;
+      getAppSettings: () => Promise<{ dataDirectory: string; appVersion: string }>;
+      changeDataDirectory: () => Promise<{ changed: boolean; newPath: string; needsRestart: boolean }>;
+      checkForUpdates: () => Promise<{
+        ok: boolean;
+        currentVersion: string;
+        latestVersion: string;
+        hasUpdate: boolean;
+        releaseUrl: string;
+        releaseNotes: string;
+      }>;
+      openExternalUrl: (url: string) => void;
+      restartApp: () => void;
     };
     windowControls: {
       minimize: () => void;
