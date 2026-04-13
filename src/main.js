@@ -3,7 +3,6 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const { createClientDataService } = require('./services/clientDataService');
-const { initTestClients } = require('./scripts/initTestClients');
 
 let splashWindow;
 let mainWindow;
@@ -503,9 +502,6 @@ app.whenReady().then(async () => {
   dataRoot = resolvedRoot;
   clientService = createClientDataService(dataRoot);
   clientService.ensureClientsRoot();
-  if (!app.isPackaged) {
-    initTestClients(clientService);
-  }
   setupIpcHandlers();
 
   createSplashWindow();
