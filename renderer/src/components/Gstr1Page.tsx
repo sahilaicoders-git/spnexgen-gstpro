@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Download, FileCheck2, RefreshCcw, Save, Search, Trash2, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileCheck2, Info, RefreshCcw, Save, Search, Trash2, TriangleAlert } from "lucide-react";
 import type {
   ClientRecord,
   Gstr1B2BRow,
@@ -44,6 +44,40 @@ type B2BInvoiceGroup = {
   sgst: number;
   rows: Gstr1B2BRow[];
 };
+
+// ── Table 13: Documents Issued During Tax Period ──────────────────────────────
+type DocRow = {
+  id: string;
+  nature: string;
+  srNoFrom: string;
+  srNoTo: string;
+  cancelled: number;
+};
+
+const DOC_NATURES = [
+  "Invoices for outward supply",
+  "Invoices for inward supply (from unregistered persons)",
+  "Revised Invoice",
+  "Debit Note",
+  "Credit Note",
+  "Receipt Voucher",
+  "Payment Voucher",
+  "Refund Voucher",
+  "Delivery Challan for job work",
+  "Delivery Challan for supply on approval",
+  "Delivery Challan in case of liquid gas",
+  "Delivery Challan in other cases",
+];
+
+function makeDefaultDocRows(): DocRow[] {
+  return DOC_NATURES.map((nature, idx) => ({
+    id: `doc-${idx}`,
+    nature,
+    srNoFrom: "",
+    srNoTo: "",
+    cancelled: 0,
+  }));
+}
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
@@ -101,6 +135,8 @@ export default function Gstr1Page({
   const [hsnPage, setHsnPage] = useState(1);
   const [hsnPageSize, setHsnPageSize] = useState<number>(10);
   const [expandedB2BInvoices, setExpandedB2BInvoices] = useState<Set<string>>(new Set());
+  // ── Table 13 state ──────────────────────────────────────────────────────────
+  const [docRows, setDocRows] = useState<DocRow[]>(makeDefaultDocRows);
 
   const toUserError = (error: unknown, fallback: string): string => {
     const text = error instanceof Error ? error.message : String(error || "");
@@ -120,6 +156,29 @@ export default function Gstr1Page({
       });
       setData(next);
       setEditedB2BRows(next.b2bRows);
+
+      // ── Auto-fill Table 13 Row 1: Invoices for outward supply ───────────────
+      // Collect unique invoice numbers from B2B rows and sort them naturally
+      const b2bInvoiceNos = Array.from(
+        new Set(next.b2bRows.map((r) => String(r["Invoice Number"] || "").trim()).filter(Boolean))
+      ).sort((a, b) => {
+        // Natural sort: numeric suffix aware
+        const numA = parseInt(a.replace(/\D/g, ""), 10);
+        const numB = parseInt(b.replace(/\D/g, ""), 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b, "en", { sensitivity: "base" });
+      });
+
+      if (b2bInvoiceNos.length > 0) {
+        setDocRows((prev) =>
+          prev.map((row) =>
+            row.id === "doc-0"
+              ? { ...row, srNoFrom: b2bInvoiceNos[0], srNoTo: b2bInvoiceNos[b2bInvoiceNos.length - 1] }
+              : row
+          )
+        );
+      }
+
       onStatus(`GSTR-1 prepared for ${month}`);
     } catch (error) {
       onStatus(toUserError(error, "Unable to generate GSTR-1 data."));
@@ -127,6 +186,7 @@ export default function Gstr1Page({
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     loadGstr1();
@@ -1005,28 +1065,215 @@ export default function Gstr1Page({
       {activeTab === "b2cl" && renderB2CL()}
       {activeTab === "hsn" && renderHSN()}
 
-      {activeTab === "docs" && data && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-800">Document Summary</h3>
-            <div className="mt-3 space-y-2 text-sm text-slate-700">
-              <p>Total Invoices Issued: {data.documentSummary.totalInvoicesIssued}</p>
-              <p>Cancelled Invoices: {data.documentSummary.cancelledInvoices}</p>
-              <p className="font-semibold">Net Issued: {data.documentSummary.netIssued}</p>
+      {activeTab === "docs" && (
+        <div className="space-y-4">
+          {/* Table 13 header */}
+          <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                <Info size={15} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-blue-900">Table 13 — Documents Issued During the Tax Period</h3>
+                <p className="mt-0.5 text-xs text-blue-700">
+                  Mandatory from May 2025. Enter the serial number range for each document type issued this month.
+                  Total and Net Issued are auto-calculated. Leave blank for document types not used.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-800">Filing History</h3>
-            <div className="mt-3 space-y-2 text-sm text-slate-700">
-              {data.filingHistory.length === 0 && <p className="text-slate-500">No filing history yet.</p>}
-              {data.filingHistory.slice(0, 8).map((row, idx) => (
-                <p key={`${row.filedAt}-${idx}`}>
-                  {new Date(row.filedAt).toLocaleString("en-IN")} - {row.month} ({row.financialYear})
-                </p>
-              ))}
+          {/* Table 13 editable grid */}
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-[860px] w-full text-sm">
+                <thead className="bg-slate-800 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                  <tr>
+                    <th className="px-3 py-3 text-left w-8">#</th>
+                    <th className="px-3 py-3 text-left">Nature of Document</th>
+                    <th className="px-3 py-3 text-center w-32">Sr. No. From</th>
+                    <th className="px-3 py-3 text-center w-32">Sr. No. To</th>
+                    <th className="px-3 py-3 text-center w-28">Total Number</th>
+                    <th className="px-3 py-3 text-center w-28">Cancelled</th>
+                    <th className="px-3 py-3 text-center w-28">Net Issued</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {docRows.map((row, idx) => {
+                    // Auto-calculate Total from Sr. No. From/To (numeric suffix extraction)
+                    const fromNum = parseInt(String(row.srNoFrom || "").replace(/\D/g, ""), 10);
+                    const toNum2 = parseInt(String(row.srNoTo || "").replace(/\D/g, ""), 10);
+                    const total = (!isNaN(fromNum) && !isNaN(toNum2) && toNum2 >= fromNum)
+                      ? toNum2 - fromNum + 1
+                      : (row.srNoFrom || row.srNoTo ? "-" : "");
+                    const netIssued = typeof total === "number"
+                      ? Math.max(0, total - (Number(row.cancelled) || 0))
+                      : "";
+
+                    const isOutward = idx === 0;
+                    const rowBg = isOutward
+                      ? "bg-indigo-50/60"
+                      : idx % 2 === 0
+                      ? "bg-white"
+                      : "bg-slate-50/50";
+
+                    return (
+                      <tr key={row.id} className={`border-t border-slate-100 transition hover:bg-blue-50/30 ${rowBg}`}>
+                        <td className="px-3 py-2.5 text-center text-xs font-medium text-slate-400">{idx + 1}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`text-sm ${isOutward ? "font-semibold text-indigo-800" : "text-slate-700"}`}>
+                            {row.nature}
+                          </span>
+                          {isOutward && (
+                            <span className="ml-2 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">Primary</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <input
+                            type="text"
+                            placeholder="e.g. INV-001"
+                            value={row.srNoFrom}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDocRows((prev) =>
+                                prev.map((r) => r.id === row.id ? { ...r, srNoFrom: val } : r)
+                              );
+                            }}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-center text-xs font-mono focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                          />
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <input
+                            type="text"
+                            placeholder="e.g. INV-100"
+                            value={row.srNoTo}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDocRows((prev) =>
+                                prev.map((r) => r.id === row.id ? { ...r, srNoTo: val } : r)
+                              );
+                            }}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-center text-xs font-mono focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={`text-sm font-semibold ${
+                            typeof total === "number" && total > 0 ? "text-slate-800" : "text-slate-400"
+                          }`}>
+                            {total === "" ? "—" : total}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2.5">
+                          <input
+                            type="number"
+                            min={0}
+                            value={row.cancelled}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value) || 0);
+                              setDocRows((prev) =>
+                                prev.map((r) => r.id === row.id ? { ...r, cancelled: val } : r)
+                              );
+                            }}
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-center text-xs text-rose-700 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={`text-sm font-bold ${
+                            typeof netIssued === "number" && netIssued > 0
+                              ? "text-emerald-700"
+                              : "text-slate-400"
+                          }`}>
+                            {netIssued === "" ? "—" : netIssued}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {/* Footer totals */}
+                <tfoot className="bg-slate-100 text-sm font-bold text-slate-800">
+                  <tr className="border-t-2 border-slate-300">
+                    <td colSpan={4} className="px-3 py-2.5 text-right text-xs uppercase tracking-wide text-slate-500">Grand Total</td>
+                    <td className="px-3 py-2.5 text-center text-slate-800">
+                      {docRows.reduce((sum, row) => {
+                        const f = parseInt(String(row.srNoFrom || "").replace(/\D/g, ""), 10);
+                        const t = parseInt(String(row.srNoTo || "").replace(/\D/g, ""), 10);
+                        if (!isNaN(f) && !isNaN(t) && t >= f) return sum + (t - f + 1);
+                        return sum;
+                      }, 0) || "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-rose-700">
+                      {docRows.reduce((sum, row) => sum + (Number(row.cancelled) || 0), 0) || "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-emerald-700">
+                      {(() => {
+                        let total = 0;
+                        docRows.forEach((row) => {
+                          const f = parseInt(String(row.srNoFrom || "").replace(/\D/g, ""), 10);
+                          const t = parseInt(String(row.srNoTo || "").replace(/\D/g, ""), 10);
+                          if (!isNaN(f) && !isNaN(t) && t >= f) total += (t - f + 1) - (Number(row.cancelled) || 0);
+                        });
+                        return total || "—";
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Quick-fill helper */}
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2.5">
+              <p className="text-xs text-slate-500">
+                💡 <strong>Tip:</strong> Enter the first and last invoice serial numbers issued this month. Cancelled = docs voided/not used.
+              </p>
+              <button
+                type="button"
+                onClick={() => setDocRows(makeDefaultDocRows())}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Reset Table
+              </button>
             </div>
           </div>
+
+          {/* Document Summary card + Filing History side by side */}
+          {data && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-800">Auto-Computed Document Summary</h3>
+                <p className="mt-0.5 text-xs text-slate-500">Derived from B2B and B2C sales entered in the system</p>
+                <div className="mt-3 divide-y divide-slate-100 text-sm">
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-slate-600">Total Invoices Issued</span>
+                    <span className="font-bold text-slate-800">{data.documentSummary.totalInvoicesIssued}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-slate-600">Cancelled Invoices</span>
+                    <span className="font-medium text-rose-700">{data.documentSummary.cancelledInvoices}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="font-semibold text-slate-700">Net Issued</span>
+                    <span className="font-bold text-emerald-700">{data.documentSummary.netIssued}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-800">Filing History</h3>
+                <div className="mt-3 space-y-2 text-sm">
+                  {data.filingHistory.length === 0 && (
+                    <p className="text-slate-500">No filing history yet.</p>
+                  )}
+                  {data.filingHistory.slice(0, 6).map((row, idx) => (
+                    <div key={`${row.filedAt}-${idx}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                      <span className="text-xs text-slate-500">{row.month} · {row.financialYear}</span>
+                      <span className="text-xs font-medium text-slate-700">{new Date(row.filedAt).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

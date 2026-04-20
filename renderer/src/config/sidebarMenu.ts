@@ -83,6 +83,7 @@ export const sidebarMenuConfig: SidebarMenuGroup[] = [
       { id: "util-invoice", label: "Invoice Generator" },
       { id: "util-backup", label: "Backup & Restore" },
       { id: "util-json", label: "JSON Viewer" },
+      { id: "util-gstr-json", label: "GSTR-1 JSON Converter" },
     ],
   },
   {

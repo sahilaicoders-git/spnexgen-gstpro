@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, Copy, Database, FileArchive, FileCode2, Hash, IndianRupee, RotateCcw } from "lucide-react";
+import { Calculator, Copy, Database, ExternalLink, FileArchive, FileCode2, Hash, IndianRupee, RotateCcw } from "lucide-react";
 import { hsnCodes } from "../data/hsnCodes";
 import type { ClientRecord } from "../types";
 
@@ -11,7 +11,7 @@ type Props = {
   onStatus: (text: string) => void;
 };
 
-type UtilityPageMode = "util-calc" | "util-hsn" | "util-invoice" | "util-backup" | "util-json";
+type UtilityPageMode = "util-calc" | "util-hsn" | "util-invoice" | "util-backup" | "util-json" | "util-gstr-json";
 
 type CalcMode = "exclusive" | "inclusive";
 
@@ -218,6 +218,7 @@ export default function UtilityModule({ selectedClient, financialYear, month, mo
     "util-invoice": "Invoice Number Generator",
     "util-backup": "Data Backup & Restore",
     "util-json": "JSON Viewer",
+    "util-gstr-json": "GSTR-1 CSV → JSON Converter",
   };
 
   const subtitleMap: Record<UtilityPageMode, string> = {
@@ -226,6 +227,7 @@ export default function UtilityModule({ selectedClient, financialYear, month, mo
     "util-invoice": "Generate sequential monthly invoice numbers instantly.",
     "util-backup": "Create secure backups and restore client data from ZIP.",
     "util-json": "Inspect and edit raw month JSON payload for debugging.",
+    "util-gstr-json": "Convert exported B2B CSV to GSTR-1 JSON via SPOnline Tool.",
   };
 
   const shellTone = dark
@@ -238,7 +240,9 @@ export default function UtilityModule({ selectedClient, financialYear, month, mo
           ? "bg-gradient-to-b from-blue-50 to-slate-50"
           : pageMode === "util-backup"
             ? "bg-gradient-to-b from-amber-50 to-slate-50"
-            : "bg-gradient-to-b from-slate-100 to-slate-50";
+            : pageMode === "util-gstr-json"
+              ? "bg-gradient-to-b from-indigo-50 to-slate-50"
+              : "bg-gradient-to-b from-slate-100 to-slate-50";
 
   return (
     <section className={`space-y-4 rounded-2xl p-3 ${shellTone}`}>
@@ -419,6 +423,78 @@ export default function UtilityModule({ selectedClient, financialYear, month, mo
             <p>2. Use ZIP generated from this app only.</p>
             <p>3. Restart app after large restore for clean reload.</p>
           </div>
+        </article>
+      )}
+
+      {pageMode === "util-gstr-json" && (
+        <article className={`${card} space-y-4`}>
+          {/* Header */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100">
+              <FileCode2 size={22} className="text-indigo-600" />
+            </div>
+            <div>
+              <h3 className={`text-base font-bold ${text}`}>CSV → GSTR-1 JSON Converter</h3>
+              <p className={`text-xs ${muted}`}>SPOnline Tool converts your B2B CSV export into GSTR-1 compliant JSON</p>
+            </div>
+          </div>
+
+          {/* How-to steps */}
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-indigo-800">📋 How to use</p>
+            <ol className="space-y-2 text-sm text-indigo-900">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-200 text-[10px] font-bold text-indigo-700">1</span>
+                Go to <strong>Sales → Sales Summary</strong> and switch to the <strong>B2B</strong> tab
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-200 text-[10px] font-bold text-indigo-700">2</span>
+                Click <strong>"Export B2B CSV (GST Portal Format)"</strong> — file downloads instantly
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-200 text-[10px] font-bold text-indigo-700">3</span>
+                Open the SPOnline Tool below, upload the CSV and download the GSTR-1 JSON
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-200 text-[10px] font-bold text-indigo-700">4</span>
+                Upload the JSON to the <strong>GST Portal → GSTR-1 → Upload JSON</strong>
+              </li>
+            </ol>
+          </div>
+
+          {/* CSV format reference */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">CSV Column Format (GST Portal B2B)</p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead className="bg-slate-200 text-slate-600">
+                  <tr>
+                    {["GSTIN/UIN","Receiver Name","Invoice No","Invoice Date","Invoice Value","Place Of Supply","Rev Charge","Appl %","Invoice Type","E-Comm GSTIN","Rate","Taxable Value","Cess"].map(h => (
+                      <th key={h} className="whitespace-nowrap px-2 py-1 text-left font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-slate-200 text-slate-600">
+                    {["27AAICA3361R1Z5","SAMPLE COMPANY","162","29-Mar-26","40002","27-Maharashtra","N","","Regular B2B","","18","33900","0"].map((v, i) => (
+                      <td key={i} className="whitespace-nowrap px-2 py-1 font-mono">{v || <span className="text-slate-300">—</span>}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Open tool button */}
+          <button
+            type="button"
+            onClick={() => window.gstAPI?.openExternalUrl("https://sponlinetool.vercel.app/")}
+            className="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 px-6 py-4 text-base font-bold text-white shadow-md transition hover:bg-indigo-500 active:scale-[0.98]"
+          >
+            <ExternalLink size={20} />
+            Open SPOnline CSV → JSON Tool
+          </button>
+          <p className="text-center text-xs text-slate-400">Opens in your default web browser</p>
         </article>
       )}
 

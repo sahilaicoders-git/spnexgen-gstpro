@@ -608,6 +608,13 @@ declare global {
         saleType: "b2b" | "b2c";
         sale: SaleRecord;
       }) => Promise<{ ok: boolean; sale: SaleRecord }>;
+      updateSale: (payload: {
+        gstin: string;
+        financialYear: string;
+        month: string;
+        saleType: "b2b" | "b2c";
+        sale: SaleRecord;
+      }) => Promise<{ ok: boolean; sale: SaleRecord }>;
       loadSales: (payload: {
         gstin: string;
         financialYear: string;

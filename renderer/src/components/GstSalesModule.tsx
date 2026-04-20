@@ -1,7 +1,105 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileSpreadsheet, Plus, Trash2 } from "lucide-react";
+import { Download, ExternalLink, FileDown, FileSpreadsheet, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import type { ClientRecord, MasterPartyResponse, SaleItem, SaleRecord } from "../types";
 import PartyLookupDropdown from "./PartyLookupDropdown";
+
+// ── GST State code map for CSV POS format ────────────────────────────────────
+const STATE_CODE_MAP: Record<string, string> = {
+  "Jammu & Kashmir": "01", "Himachal Pradesh": "02", "Punjab": "03",
+  "Chandigarh": "04", "Uttarakhand": "05", "Haryana": "06", "Delhi": "07",
+  "Rajasthan": "08", "Uttar Pradesh": "09", "Bihar": "10", "Sikkim": "11",
+  "Arunachal Pradesh": "12", "Nagaland": "13", "Manipur": "14", "Mizoram": "15",
+  "Tripura": "16", "Meghalaya": "17", "Assam": "18", "West Bengal": "19",
+  "Jharkhand": "20", "Odisha": "21", "Chhattisgarh": "22", "Madhya Pradesh": "23",
+  "Gujarat": "24", "Maharashtra": "27", "Karnataka": "29", "Goa": "30",
+  "Kerala": "32", "Tamil Nadu": "33", "Puducherry": "34", "Telangana": "36",
+  "Andhra Pradesh": "37", "Ladakh": "38",
+};
+
+// ── Format date as dd-MMM-yy for GST portal CSV ──────────────────────────────
+function formatDateForCsv(isoDate: string): string {
+  if (!isoDate) return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  // Accept YYYY-MM-DD or DD-MM-YYYY or DD/MM/YYYY
+  let d: Date | null = null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    d = new Date(isoDate);
+  } else {
+    const parts = isoDate.replace(/\//g, "-").split("-");
+    if (parts.length === 3 && parts[0].length <= 2) {
+      d = new Date(`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`);
+    }
+  }
+  if (!d || isNaN(d.getTime())) return isoDate;
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${String(d.getDate()).padStart(2, "0")}-${months[d.getMonth()]}-${yy}`;
+}
+
+// ── Build POS string like "27-Maharashtra" ───────────────────────────────────
+function buildPosString(state: string): string {
+  if (!state) return "";
+  // If already in "27-Maharashtra" format, return as-is
+  if (/^\d{2}-/.test(state)) return state;
+  const code = STATE_CODE_MAP[state] || "";
+  return code ? `${code}-${state}` : state;
+}
+
+// ── Generate B2B CSV (GST portal format) ─────────────────────────────────────
+function generateB2BCSVContent(b2bSales: SaleRecord[]): string {
+  const header = [
+    "GSTIN/UIN of Recipient", "Receiver Name", "Invoice Number", "Invoice date",
+    "Invoice Value", "Place Of Supply", "Reverse Charge", "Applicable % of Tax Rate",
+    "Invoice Type", "E-Commerce GSTIN", "Rate", "Taxable Value", "Cess Amount",
+  ];
+
+  const lines: string[] = [header.join(",")];
+
+  for (const sale of b2bSales) {
+    // Each sale may have multiple items at different rates — emit one row per item
+    const items = sale.items && sale.items.length > 0 ? sale.items : [{
+      gst_rate: 0, taxable_value: sale.taxable_value, igst: 0, cgst: 0, sgst: 0,
+      description: "", hsn_sac: "", quantity: 1, rate: 0, total_amount: sale.total_value, sr_no: 1,
+    }];
+
+    // Group by GST rate and sum taxable values
+    const rateMap = new Map<number, number>();
+    for (const item of items) {
+      const r = item.gst_rate ?? 0;
+      rateMap.set(r, (rateMap.get(r) || 0) + (item.taxable_value ?? 0));
+    }
+
+    for (const [gstRate, taxableSum] of rateMap.entries()) {
+      const row = [
+        sale.buyer_gstin || "",
+        sale.buyer_name || "",
+        sale.invoice_no || "",
+        formatDateForCsv(sale.date),
+        sale.total_value.toFixed(0),
+        buildPosString(sale.place_of_supply || ""),
+        sale.reverse_charge ? "Y" : "N",
+        "",                      // Applicable % of Tax Rate
+        "Regular B2B",           // Invoice Type
+        "",                      // E-Commerce GSTIN
+        String(gstRate),
+        taxableSum.toFixed(0),
+        "0",                     // Cess Amount
+      ];
+      lines.push(row.map(v => String(v).includes(",") ? `"${v}"` : v).join(","));
+    }
+  }
+
+  return lines.join("\r\n");
+}
+
+function downloadCSV(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 type Props = {
   selectedClient: ClientRecord;
@@ -108,6 +206,363 @@ function createInvoiceNumber(prefix: string) {
   return `${prefix}-${random}`;
 }
 
+// ── Edit Modal ─────────────────────────────────────────────────────────────────
+type EditModalProps = {
+  sale: SaleRecord;
+  saleType: "b2b" | "b2c";
+  supplierState: string;
+  onSave: (updated: SaleRecord) => Promise<void>;
+  onClose: () => void;
+};
+
+function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditModalProps) {
+  const [invoiceNo, setInvoiceNo] = useState(sale.invoice_no);
+  const [invoiceDate, setInvoiceDate] = useState(sale.date);
+  const [placeOfSupply, setPlaceOfSupply] = useState(sale.place_of_supply || "Maharashtra");
+  const [reverseCharge, setReverseCharge] = useState<"Yes" | "No">(
+    (sale.reverse_charge as "Yes" | "No") || "No"
+  );
+  const [b2cType, setB2cType] = useState<"B2C Large" | "B2C Small">(
+    (sale.type as "B2C Large" | "B2C Small") || "B2C Small"
+  );
+  const [buyerGstin, setBuyerGstin] = useState(sale.buyer_gstin || "");
+  const [buyerName, setBuyerName] = useState(sale.buyer_name || "");
+  const [items, setItems] = useState<SaleItem[]>(
+    sale.items && sale.items.length > 0 ? sale.items : [emptyItem(1)]
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const interstate = placeOfSupply !== supplierState;
+
+  const recalcItems = (list: SaleItem[]) =>
+    list.map((item) => {
+      const qty = Number(item.quantity || 0);
+      const rate = Number(item.rate || 0);
+      const taxable = Number((qty * rate).toFixed(2));
+      const gstRate = Number(item.gst_rate || 0);
+      const totalTax = Number(((taxable * gstRate) / 100).toFixed(2));
+      const igst = interstate ? totalTax : 0;
+      const cgst = interstate ? 0 : Number((totalTax / 2).toFixed(2));
+      const sgst = interstate ? 0 : Number((totalTax / 2).toFixed(2));
+      return {
+        ...item,
+        taxable_value: taxable,
+        igst,
+        cgst,
+        sgst,
+        total_amount: Number((taxable + igst + cgst + sgst).toFixed(2)),
+      };
+    });
+
+  useEffect(() => {
+    setItems((prev) => recalcItems(prev));
+  }, [placeOfSupply]);
+
+  const handleItemChange = (index: number, key: keyof SaleItem, value: string) => {
+    const updated = items.map((item, idx) => {
+      if (idx !== index) return item;
+      if (["quantity", "rate", "gst_rate"].includes(key)) {
+        return { ...item, [key]: Number(value || 0) };
+      }
+      return { ...item, [key]: value };
+    });
+    setItems(recalcItems(updated));
+  };
+
+  const addRow = () => setItems((prev) => [...prev, emptyItem(prev.length + 1)]);
+  const removeRow = (index: number) => {
+    const next = items
+      .filter((_, idx) => idx !== index)
+      .map((item, idx) => ({ ...item, sr_no: idx + 1 }));
+    setItems(next.length > 0 ? recalcItems(next) : [emptyItem(1)]);
+  };
+
+  const totals = useMemo(() => {
+    const taxable = items.reduce((sum, item) => sum + Number(item.taxable_value || 0), 0);
+    const gstAmount = items.reduce(
+      (sum, item) => sum + Number(item.igst || 0) + Number(item.cgst || 0) + Number(item.sgst || 0),
+      0
+    );
+    return {
+      taxable: Number(taxable.toFixed(2)),
+      gstAmount: Number(gstAmount.toFixed(2)),
+      total: Number((taxable + gstAmount).toFixed(2)),
+    };
+  }, [items]);
+
+  const handleSave = async () => {
+    if (!invoiceNo.trim()) { setError("Invoice number is required."); return; }
+    if (saleType === "b2b" && !GSTIN_REGEX.test(buyerGstin.toUpperCase())) {
+      setError("Valid buyer GSTIN is required for B2B."); return;
+    }
+    for (const item of items) {
+      if (Number(item.quantity) <= 0) { setError("Quantity must be > 0."); return; }
+      if (Number(item.rate) <= 0) { setError("Rate must be > 0."); return; }
+    }
+    setError("");
+    setSaving(true);
+    try {
+      const updated: SaleRecord = {
+        ...sale,
+        invoice_no: invoiceNo.trim(),
+        date: invoiceDate,
+        place_of_supply: placeOfSupply,
+        buyer_gstin: saleType === "b2b" ? buyerGstin.toUpperCase() : undefined,
+        buyer_name: saleType === "b2b" ? buyerName.trim() : undefined,
+        reverse_charge: saleType === "b2b" ? reverseCharge : undefined,
+        type: saleType === "b2c" ? b2cType : undefined,
+        items,
+        taxable_value: totals.taxable,
+        gst_amount: totals.gstAmount,
+        total_value: totals.total,
+      };
+      await onSave(updated);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">
+              Edit {saleType.toUpperCase()} Sale
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Invoice: <span className="font-medium text-slate-700">{sale.invoice_no}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {/* Invoice header fields */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <label className="text-xs font-medium text-slate-600">Invoice Number</label>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600">Invoice Date</label>
+              <input
+                type="date"
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600">Place of Supply</label>
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                value={placeOfSupply}
+                onChange={(e) => setPlaceOfSupply(e.target.value)}
+              >
+                {STATES.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            {saleType === "b2b" && (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-slate-600">Buyer GSTIN</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm uppercase focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    value={buyerGstin}
+                    maxLength={15}
+                    onChange={(e) => setBuyerGstin(e.target.value.toUpperCase())}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600">Buyer Name</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    value={buyerName}
+                    onChange={(e) => setBuyerName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-600">Reverse Charge</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    value={reverseCharge}
+                    onChange={(e) => setReverseCharge(e.target.value as "Yes" | "No")}
+                  >
+                    <option>No</option>
+                    <option>Yes</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {saleType === "b2c" && (
+              <div>
+                <label className="text-xs font-medium text-slate-600">Supply Type</label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                  value={b2cType}
+                  onChange={(e) => setB2cType(e.target.value as "B2C Large" | "B2C Small")}
+                >
+                  <option>B2C Small</option>
+                  <option>B2C Large</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Items table */}
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-700">Items</h3>
+              <button
+                type="button"
+                onClick={addRow}
+                className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100"
+              >
+                <Plus size={13} /> Add Item
+              </button>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-[1040px] w-full text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-2 py-2">Sr</th>
+                    <th className="px-2 py-2">Description</th>
+                    <th className="px-2 py-2">HSN/SAC</th>
+                    <th className="px-2 py-2">Qty</th>
+                    <th className="px-2 py-2">Rate</th>
+                    <th className="px-2 py-2">Taxable</th>
+                    <th className="px-2 py-2">GST %</th>
+                    <th className="px-2 py-2">IGST</th>
+                    <th className="px-2 py-2">CGST</th>
+                    <th className="px-2 py-2">SGST</th>
+                    <th className="px-2 py-2">Total</th>
+                    <th className="px-2 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {items.map((item, idx) => (
+                    <tr key={item.sr_no}>
+                      <td className="px-2 py-2 text-slate-600">{item.sr_no}</td>
+                      <td className="px-2 py-2">
+                        <input
+                          className="w-40 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-400 focus:outline-none"
+                          value={item.description}
+                          onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          className="w-24 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-400 focus:outline-none"
+                          value={item.hsn_sac}
+                          onChange={(e) => handleItemChange(idx, "hsn_sac", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          className="w-18 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-400 focus:outline-none"
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          className="w-24 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-400 focus:outline-none"
+                          value={item.rate}
+                          onChange={(e) => handleItemChange(idx, "rate", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">{item.taxable_value.toFixed(2)}</td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          className="w-16 rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-cyan-400 focus:outline-none"
+                          value={item.gst_rate}
+                          onChange={(e) => handleItemChange(idx, "gst_rate", e.target.value)}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">{item.igst.toFixed(2)}</td>
+                      <td className="px-2 py-2 text-slate-700">{item.cgst.toFixed(2)}</td>
+                      <td className="px-2 py-2 text-slate-700">{item.sgst.toFixed(2)}</td>
+                      <td className="px-2 py-2 font-medium text-slate-700">
+                        {item.total_amount.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-2">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(idx)}
+                          className="rounded bg-rose-100 p-1 text-rose-600 hover:bg-rose-200"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals row */}
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                Taxable: <span className="font-semibold">{totals.taxable.toFixed(2)}</span>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                GST: <span className="font-semibold">{totals.gstAmount.toFixed(2)}</span>
+              </div>
+              <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm">
+                Total: <span className="font-semibold text-cyan-700">{totals.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {error && <p className="mt-3 text-sm font-medium text-rose-600">{error}</p>}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            <Save size={15} />
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GstSalesModule({ selectedClient, financialYear, month, mode, onStatus }: Props) {
   const [saleType, setSaleType] = useState<"b2b" | "b2c">("b2b");
   const [invoiceNo, setInvoiceNo] = useState(createInvoiceNumber("INV"));
@@ -131,6 +586,9 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
   const [openAfterExport, setOpenAfterExport] = useState(true);
+
+  // ── Edit state ──────────────────────────────────────────────────────────────
+  const [editSale, setEditSale] = useState<{ sale: SaleRecord; saleType: "b2b" | "b2c" } | null>(null);
 
   const supplierState = STATE_CODES[selectedClient.gstin.slice(0, 2)] || "Maharashtra";
   const interstate = placeOfSupply !== supplierState;
@@ -353,6 +811,21 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
     await loadSales();
   };
 
+  // ── Update sale handler (called from EditSaleModal) ─────────────────────────
+  const handleUpdateSale = async (updated: SaleRecord) => {
+    if (!editSale) return;
+    await window.gstAPI.updateSale({
+      gstin: selectedClient.gstin,
+      financialYear,
+      month,
+      saleType: editSale.saleType,
+      sale: updated,
+    });
+    onStatus(`Updated ${editSale.saleType.toUpperCase()} invoice ${updated.invoice_no}`);
+    setEditSale(null);
+    await loadSales();
+  };
+
   const exportSales = async () => {
     const result = await window.gstAPI.exportSales({
       gstin: selectedClient.gstin,
@@ -454,90 +927,189 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
 
   if (mode === "summary") {
     return (
-      <section className="space-y-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-800">Sales Summary</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            <input
-              value={invoiceSearch}
-              onChange={(e) => setInvoiceSearch(e.target.value)}
-              placeholder="Search invoice"
-              className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
-            />
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
-            <button type="button" onClick={loadSales} className="rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700">
-              Apply Filters
-            </button>
-          </div>
-        </div>
+      <>
+        {/* Edit Modal */}
+        {editSale && (
+          <EditSaleModal
+            sale={editSale.sale}
+            saleType={editSale.saleType}
+            supplierState={supplierState}
+            onSave={handleUpdateSale}
+            onClose={() => setEditSale(null)}
+          />
+        )}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setSummaryTab("b2b")}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${summaryTab === "b2b" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}
-            >
-              B2B
-            </button>
-            <button
-              type="button"
-              onClick={() => setSummaryTab("b2c")}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${summaryTab === "b2c" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}
-            >
-              B2C
-            </button>
-          </div>
-
-          <div className="overflow-hidden rounded-xl border border-slate-200">
-            <div className="max-h-[58vh] overflow-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="sticky top-0 bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2">Invoice No</th>
-                    <th className="px-3 py-2">Date</th>
-                    <th className="px-3 py-2">Party Name / Type</th>
-                    <th className="px-3 py-2">Taxable Value</th>
-                    <th className="px-3 py-2">GST Amount</th>
-                    <th className="px-3 py-2">Total</th>
-                    <th className="px-3 py-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {!loading && rows.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
-                        No sales found
-                      </td>
-                    </tr>
-                  )}
-                  {rows.map((sale) => (
-                    <tr key={sale.id || sale.invoice_no}>
-                      <td className="px-3 py-2 font-medium text-slate-700">{sale.invoice_no}</td>
-                      <td className="px-3 py-2 text-slate-600">{sale.date}</td>
-                      <td className="px-3 py-2 text-slate-600">{summaryTab === "b2b" ? sale.buyer_name || "-" : sale.type || "B2C"}</td>
-                      <td className="px-3 py-2 text-slate-700">{sale.taxable_value.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-slate-700">{sale.gst_amount.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-slate-700">{sale.total_value.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-right">
-                        <button type="button" className="mr-2 rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-700">View</button>
-                        <button
-                          type="button"
-                          onClick={() => deleteSale(summaryTab, sale)}
-                          className="rounded-lg bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-700"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <section className="space-y-4">
+          {/* Filter bar */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-800">Sales Summary</h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <input
+                value={invoiceSearch}
+                onChange={(e) => setInvoiceSearch(e.target.value)}
+                placeholder="Search invoice"
+                className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+              />
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm" />
+              <button type="button" onClick={loadSales} className="rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700">
+                Apply Filters
+              </button>
             </div>
           </div>
-        </div>
-      </section>
+
+          {/* Table */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSummaryTab("b2b")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${summaryTab === "b2b" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}
+              >
+                B2B {salesData.b2b.length > 0 && <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{salesData.b2b.length}</span>}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSummaryTab("b2c")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${summaryTab === "b2c" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}
+              >
+                B2C {salesData.b2c.length > 0 && <span className="ml-1 rounded-full bg-white/20 px-1.5 text-xs">{salesData.b2c.length}</span>}
+              </button>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <div className="max-h-[58vh] overflow-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="sticky top-0 bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Invoice No</th>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Party Name / Type</th>
+                      <th className="px-3 py-2">Taxable Value</th>
+                      <th className="px-3 py-2">GST Amount</th>
+                      <th className="px-3 py-2">Total</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {!loading && rows.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
+                          No sales found
+                        </td>
+                      </tr>
+                    )}
+                    {loading && (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-8 text-center text-slate-400">
+                          Loading…
+                        </td>
+                      </tr>
+                    )}
+                    {!loading && rows.map((sale) => (
+                      <tr key={sale.id || sale.invoice_no} className="transition hover:bg-slate-50">
+                        <td className="px-3 py-2 font-medium text-slate-700">{sale.invoice_no}</td>
+                        <td className="px-3 py-2 text-slate-600">{sale.date}</td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {summaryTab === "b2b"
+                            ? (sale.buyer_name ? `${sale.buyer_name}` : "—")
+                            : sale.type || "B2C"}
+                          {summaryTab === "b2b" && sale.buyer_gstin && (
+                            <span className="ml-1.5 font-mono text-xs text-slate-400">{sale.buyer_gstin}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">₹{sale.taxable_value.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-slate-700">₹{sale.gst_amount.toFixed(2)}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-800">₹{sale.total_value.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditSale({ sale, saleType: summaryTab })}
+                              title="Edit sale"
+                              className="inline-flex items-center gap-1 rounded-lg border border-cyan-300 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-700 transition hover:bg-cyan-100"
+                            >
+                              <Pencil size={12} />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteSale(summaryTab, sale)}
+                              title="Delete sale"
+                              className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-rose-700"
+                            >
+                              <Trash2 size={12} />
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer totals + Export */}
+            {rows.length > 0 && (
+              <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                {/* Totals row */}
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                  <span>
+                    <strong className="text-slate-700">{rows.length}</strong> invoice{rows.length !== 1 ? "s" : ""}
+                  </span>
+                  <span>
+                    Taxable:{" "}
+                    <strong className="text-slate-700">
+                      ₹{rows.reduce((s, r) => s + r.taxable_value, 0).toFixed(2)}
+                    </strong>
+                  </span>
+                  <span>
+                    GST:{" "}
+                    <strong className="text-slate-700">
+                      ₹{rows.reduce((s, r) => s + r.gst_amount, 0).toFixed(2)}
+                    </strong>
+                  </span>
+                  <span>
+                    Total:{" "}
+                    <strong className="text-emerald-700">
+                      ₹{rows.reduce((s, r) => s + r.total_value, 0).toFixed(2)}
+                    </strong>
+                  </span>
+                </div>
+
+                {/* Export B2B CSV — only shown on B2B tab */}
+                {summaryTab === "b2b" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const csv = generateB2BCSVContent(salesData.b2b);
+                        const clientName = selectedClient.clientName.replace(/[^a-zA-Z0-9]/g, "_");
+                        downloadCSV(csv, `B2B_${clientName}_${financialYear}_${month}.csv`);
+                        onStatus(`B2B CSV exported: B2B_${clientName}_${financialYear}_${month}.csv`);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      <FileDown size={14} />
+                      Export B2B CSV (GST Portal Format)
+                    </button>
+                    <a
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); window.gstAPI?.openExternalUrl("https://sponlinetool.vercel.app/"); }}
+                      className="inline-flex items-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      <ExternalLink size={14} />
+                      Open SPOnline CSV→JSON Tool
+                    </a>
+                    <p className="text-[11px] text-slate-400">Export CSV → Upload to SPOnline Tool → Get GSTR-1 JSON</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      </>
     );
   }
 

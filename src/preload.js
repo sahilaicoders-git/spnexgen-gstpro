@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('gstAPI', {
   loadPurchase: (payload) => ipcRenderer.invoke('load-purchase', payload),
   deletePurchase: (payload) => ipcRenderer.invoke('delete-purchase', payload),
   saveSale: (payload) => ipcRenderer.invoke('save-sale', payload),
+  updateSale: (payload) => ipcRenderer.invoke('update-sale', payload),
   loadSales: (payload) => ipcRenderer.invoke('load-sales', payload),
   deleteSale: (payload) => ipcRenderer.invoke('delete-sale', payload),
   exportSales: (payload) => ipcRenderer.invoke('export-sales', payload),

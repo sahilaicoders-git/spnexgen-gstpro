@@ -8,7 +8,7 @@ param(
 
 $Owner   = "sahilaicoders-git"
 $Repo    = "spnexgen-gstpro"
-$Version = "2.0.5"
+$Version = "2.1.0"
 $Tag     = "v$Version"
 $ExePath = "$PSScriptRoot\release\SPGST Pro-Setup-$Version.exe"
 
@@ -37,22 +37,35 @@ Download the installer below: **SPGST Pro-Setup-$Version.exe**
 
 ### ✨ What's New in v$Version
 
-#### 🌐 Online Module — GST Portal Access
-- New **Online** sidebar section with "Login to GST Portal" and "GST Dashboard" shortcuts
-- **Auto-fill credentials** — saves username & password securely; injects them into the portal login page automatically (robust Angular-aware retry loop)
-- CAPTCHA still entered manually (GST portal security)
-- Quick links: GSTR-1 Filing, GSTR-3B Filing, Track Application, E-Way Bill
-- Persistent browser session via `persist:gstportal`
+#### 🎨 Modern Sidebar Redesign
+- Deep navy dark-mode sidebar with **per-section accent colours** (each section glows in its own unique colour)
+- Full **light/dark theme support** — sidebar switches cleanly between white (light) and navy (dark) based on your OS/app setting
+- Rounded-square icon blocks with colour glow on hover/active
+- Coloured left accent bar with neon glow on active section
+- Glowing dot indicators for sub-menu items
+- Thin connector line on child-item accordion
+- Visual dividers before Online and Settings sections
 
-#### 🎨 UI Redesign
-- **Premium dark Topbar** — navy gradient matching the header cards, rainbow accent line, frosted-glass selectors, gradient action buttons
-- **Theme-aware** — Topbar and TitleBar now switch cleanly between light (white) and dark (navy) modes
-- **New Splash Screen** — deep-space ambient background, spinning orbit ring logo, shimmer progress bar, staged step labels, scan-line sweep, blur-exit transition
+#### ⚙️ Settings — Tabbed Layout
+- Settings page now has 4 clean tabs: **Directory**, **Theme**, **Updates**, **Backup**
+- Each tab shows only its own content — no more scrolling through all settings
+- **Backup tab**: Create ZIP backup in one click + Restore from ZIP with automatic safety-backup
+- **Theme tab**: Large clickable tile cards (Light / Dark / System)
 
-#### 🔧 GSTR-3B ITC Carry-Forward (from v2.0.4)
-- Persistent carry-forward ITC across months/fiscal years
-- Edit opening balance manually
-- Auto-save remaining ITC on GSTR-3B save
+#### 📤 B2B CSV Export & SPOnline JSON Tool
+- **Sales Summary → B2B tab** now has "Export B2B CSV (GST Portal Format)" button
+- CSV matches the exact GST portal column format (GSTIN, Invoice date as dd-MMM-yy, Place Of Supply as code-State, etc.)
+- Direct link to **SPOnline CSV→JSON Tool** for one-click GSTR-1 JSON generation
+- New **Utilities → GSTR-1 JSON Converter** page with step-by-step guide and CSV format reference table
+
+#### ✏️ Sales Edit Feature
+- Edit existing B2B and B2C invoices directly from Sales Summary
+- Full edit modal with line-item editing and live tax recalculation
+
+#### 📄 GSTR-1 Document Summary (Table 13)
+- Full editable Table 13 grid with all 12 GST document types
+- Auto-calculates Total Number and Net Issued from serial ranges
+- Auto-populates "Invoices for outward supply" from B2B dataset
 
 ### 💻 System Requirements
 - Windows 10/11 (64-bit)
@@ -84,7 +97,7 @@ try {
 # ── Step 2: Upload the EXE asset ─────────────────────────────────────────────
 if (-not (Test-Path $ExePath)) {
     Write-Host "  ❌ EXE not found at: $ExePath" -ForegroundColor Red
-    Write-Host "     Run 'npm run dist:win' first." -ForegroundColor Yellow
+    Write-Host "     Run 'npm run dist:win' first to build the installer." -ForegroundColor Yellow
     exit 1
 }
 

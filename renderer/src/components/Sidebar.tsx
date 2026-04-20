@@ -45,34 +45,52 @@ const iconMap = {
   settings: Settings,
 } as const;
 
-// ── Tooltip on collapsed items ────────────────────────────────────────────────
-function Tooltip({ label }: { label: string }) {
+// ── Per-group accent colours (same in both modes, just opacity differs) ────────
+const groupAccents: Record<string, { hex: string; glow: string }> = {
+  dashboard:     { hex: "#f59e0b", glow: "rgba(245,158,11,0.28)"  },
+  clients:       { hex: "#06b6d4", glow: "rgba(6,182,212,0.28)"   },
+  sales:         { hex: "#10b981", glow: "rgba(16,185,129,0.28)"  },
+  purchase:      { hex: "#8b5cf6", glow: "rgba(139,92,246,0.28)"  },
+  "gst-returns": { hex: "#f43f5e", glow: "rgba(244,63,94,0.28)"   },
+  reports:       { hex: "#3b82f6", glow: "rgba(59,130,246,0.28)"  },
+  data:          { hex: "#f97316", glow: "rgba(249,115,22,0.28)"  },
+  utilities:     { hex: "#a855f7", glow: "rgba(168,85,247,0.28)"  },
+  online:        { hex: "#14b8a6", glow: "rgba(20,184,166,0.28)"  },
+  settings:      { hex: "#64748b", glow: "rgba(100,116,139,0.18)" },
+};
+
+function hexToRgba(hex: string, alpha: number) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── Tooltip ────────────────────────────────────────────────────────────────────
+function Tooltip({ label, color, dark }: { label: string; color?: string; dark: boolean }) {
   return (
     <span
-      className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-50 -translate-y-1/2
-        whitespace-nowrap rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white
-        opacity-0 shadow-xl ring-1 ring-white/10 transition-all duration-150
-        group-hover:opacity-100 dark:bg-slate-800"
+      className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 z-50 -translate-y-1/2
+        whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold
+        opacity-0 shadow-2xl ring-1 transition-all duration-150 group-hover:opacity-100"
+      style={{
+        background: dark
+          ? color ? `${color}dd` : "rgba(10,14,26,0.96)"
+          : color ? `${color}f0` : "rgba(15,23,42,0.92)",
+        color: "#fff",
+        ringColor: "rgba(255,255,255,0.1)",
+        backdropFilter: "blur(12px)",
+      }}
     >
       {label}
-      {/* Arrow */}
-      <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900 dark:border-r-slate-800" />
     </span>
   );
 }
 
 export default function Sidebar({
-  activeMenu,
-  onSelectMenu,
-  compact,
-  onToggleCompact,
-  selectedClientName,
-  appVersion,
-  onSwitchClient,
-  onLogout,
-  mobileOpen,
-  onCloseMobile,
-  darkMode,
+  activeMenu, onSelectMenu, compact, onToggleCompact,
+  selectedClientName, appVersion, onSwitchClient, onLogout,
+  mobileOpen, onCloseMobile, darkMode,
 }: Props) {
   const [openGroupId, setOpenGroupId] = useState<string | null>("clients");
   const [hoverExpand, setHoverExpand] = useState(false);
@@ -81,7 +99,6 @@ export default function Sidebar({
 
   const isCollapsed = compact && !hoverExpand;
 
-  // Determine which group the active item belongs to
   const activeGroup = useMemo(() => {
     const match = sidebarMenuConfig.find(
       (g) => g.id === activeMenu || g.children?.some((c) => c.id === activeMenu)
@@ -89,23 +106,14 @@ export default function Sidebar({
     return match?.id ?? null;
   }, [activeMenu]);
 
-  // ── Keyboard navigation ───────────────────────────────────────────────────
+  // Keyboard navigation
   useEffect(() => {
     const navNode = navRef.current;
     if (!navNode) return;
-
     const onKeyDown = (e: KeyboardEvent) => {
-      const btns = Array.from(
-        navNode.querySelectorAll<HTMLButtonElement>('button[data-sidebar-focusable="true"]')
-      );
+      const btns = Array.from(navNode.querySelectorAll<HTMLButtonElement>('button[data-sidebar-focusable="true"]'));
       if (!btns.length) return;
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-        e.preventDefault();
-        onToggleCompact();
-        return;
-      }
-
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") { e.preventDefault(); onToggleCompact(); return; }
       const idx = btns.findIndex((b) => b === document.activeElement);
       if (e.key === "ArrowDown") { e.preventDefault(); btns[(idx + 1) % btns.length]?.focus(); }
       if (e.key === "ArrowUp")   { e.preventDefault(); btns[idx <= 0 ? btns.length - 1 : idx - 1]?.focus(); }
@@ -113,44 +121,89 @@ export default function Sidebar({
       if (e.key === "End")       { e.preventDefault(); btns[btns.length - 1]?.focus(); }
       if ((e.key === "Enter" || e.key === " ") && idx !== -1) { e.preventDefault(); btns[idx].click(); }
     };
-
     navNode.addEventListener("keydown", onKeyDown);
     return () => navNode.removeEventListener("keydown", onKeyDown);
   }, [onToggleCompact]);
 
-  // ── Mobile trap focus ─────────────────────────────────────────────────────
+  // Mobile trap focus
   useEffect(() => {
     if (!mobileOpen) return;
     const navNode = navRef.current;
     if (!navNode) return;
-
     previousActiveRef.current = document.activeElement as HTMLElement;
-    const focusables = Array.from(
-      navNode.querySelectorAll<HTMLButtonElement>('button[data-sidebar-focusable="true"]')
-    );
+    const focusables = Array.from(navNode.querySelectorAll<HTMLButtonElement>('button[data-sidebar-focusable="true"]'));
     focusables[0]?.focus();
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); onCloseMobile(); return; }
       if (e.key !== "Tab") return;
-      const cycle = Array.from(
-        navNode.querySelectorAll<HTMLButtonElement>('button[data-sidebar-focusable="true"]')
-      );
-      const first = cycle[0];
-      const last  = cycle[cycle.length - 1];
+      const cycle = Array.from(navNode.querySelectorAll<HTMLButtonElement>('button[data-sidebar-focusable="true"]'));
+      const first = cycle[0]; const last = cycle[cycle.length - 1];
       const active = document.activeElement as HTMLElement;
-      if (e.shiftKey && active === first)  { e.preventDefault(); last.focus(); }
-      if (!e.shiftKey && active === last)  { e.preventDefault(); first.focus(); }
+      if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+      if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
     };
-
     document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previousActiveRef.current?.focus?.();
-    };
+    return () => { document.removeEventListener("keydown", onKeyDown); previousActiveRef.current?.focus?.(); };
   }, [mobileOpen, onCloseMobile]);
 
-  // ── Sidebar shell ──────────────────────────────────────────────────────────
+  // ── Theme tokens ─────────────────────────────────────────────────────────────
+  const T = darkMode ? {
+    sidebarBg:       "linear-gradient(160deg,#080c17 0%,#0b0f1e 55%,#080b15 100%)",
+    border:          "rgba(255,255,255,0.055)",
+    shadow:          "6px 0 40px rgba(0,0,0,0.55), inset -1px 0 0 rgba(255,255,255,0.04)",
+    // text
+    labelColor:      "#e2e8f0",   // main item label
+    mutedLabel:      "#475569",   // section header text
+    childLabel:      "#4b5563",   // inactive child text
+    childHover:      "#9ca3af",
+    // icon
+    iconBase:        "#4b5563",   // inactive icon
+    // bg
+    iconBaseBg:      "rgba(255,255,255,0.04)",
+    hoverRowBg:      "rgba(255,255,255,0.04)",
+    connectorLine:   "rgba(255,255,255,0.05)",
+    // bottom card
+    cardBg:          "rgba(255,255,255,0.025)",
+    cardBorder:      "rgba(255,255,255,0.065)",
+    switchBtnBorder: "rgba(255,255,255,0.055)",
+    switchBtnColor:  "#64748b",
+    switchBtnHover:  "rgba(255,255,255,0.06)",
+    switchBtnHoverColor: "#cbd5e1",
+    footerHint:      "#1e293b",
+    clientNameColor: "#e2e8f0",
+    versionColor:    "#334155",
+    toggleColor:     "#4b5563",
+    toggleHover:     "rgba(255,255,255,0.06)",
+  } : {
+    sidebarBg:       "linear-gradient(160deg,#ffffff 0%,#f8fafc 50%,#f1f5f9 100%)",
+    border:          "rgba(0,0,0,0.07)",
+    shadow:          "4px 0 24px rgba(0,0,0,0.07), inset -1px 0 0 rgba(0,0,0,0.04)",
+    // text
+    labelColor:      "#1e293b",
+    mutedLabel:      "#94a3b8",
+    childLabel:      "#94a3b8",
+    childHover:      "#334155",
+    // icon
+    iconBase:        "#94a3b8",
+    // bg
+    iconBaseBg:      "rgba(0,0,0,0.04)",
+    hoverRowBg:      "rgba(0,0,0,0.04)",
+    connectorLine:   "rgba(0,0,0,0.07)",
+    // bottom card
+    cardBg:          "rgba(0,0,0,0.03)",
+    cardBorder:      "rgba(0,0,0,0.08)",
+    switchBtnBorder: "rgba(0,0,0,0.08)",
+    switchBtnColor:  "#64748b",
+    switchBtnHover:  "rgba(0,0,0,0.05)",
+    switchBtnHoverColor: "#1e293b",
+    footerHint:      "#cbd5e1",
+    clientNameColor: "#0f172a",
+    versionColor:    "#94a3b8",
+    toggleColor:     "#94a3b8",
+    toggleHover:     "rgba(0,0,0,0.05)",
+  };
+
+  // ── Build sidebar ─────────────────────────────────────────────────────────────
   const content = (
     <aside
       ref={navRef}
@@ -158,54 +211,44 @@ export default function Sidebar({
       onMouseLeave={() => setHoverExpand(false)}
       className="flex flex-col overflow-hidden transition-all duration-300 ease-in-out"
       style={{
-        width: isCollapsed ? 72 : 256,
+        width: isCollapsed ? 68 : 256,
         height: "calc(100vh - var(--titlebar-height, 38px))",
-        background: darkMode
-          ? "linear-gradient(180deg, #0f172a 0%, #0c1220 60%, #0a0f1c 100%)"
-          : "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-        borderRight: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.08)",
-        boxShadow: darkMode
-          ? "4px 0 24px rgba(0,0,0,0.4), inset -1px 0 0 rgba(255,255,255,0.04)"
-          : "4px 0 24px rgba(0,0,0,0.06)",
+        background: T.sidebarBg,
+        borderRight: `1px solid ${T.border}`,
+        boxShadow: T.shadow,
       }}
     >
 
-      {/* ── Brand header ───────────────────────────────────────────── */}
+      {/* ── Brand header ─────────────────────────────────────────────────────── */}
       <div
         className="flex h-14 shrink-0 items-center justify-between overflow-hidden px-3"
-        style={{
-          borderBottom: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.07)",
-        }}
+        style={{ borderBottom: `1px solid ${T.border}` }}
       >
-        {/* Logo mark */}
         <div className="flex min-w-0 items-center gap-2.5">
           <div
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-xl shadow-lg"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-all duration-300"
             style={{
-              background: "linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)",
-              boxShadow: "0 4px 12px rgba(99,102,241,0.4)",
+              background: "linear-gradient(135deg,#6366f1 0%,#06b6d4 100%)",
+              boxShadow: darkMode
+                ? "0 0 20px rgba(99,102,241,0.45), 0 4px 12px rgba(0,0,0,0.5)"
+                : "0 4px 12px rgba(99,102,241,0.3)",
             }}
           >
-            <Zap size={14} className="text-white" />
+            <Zap size={16} className="text-white" />
           </div>
-
           <div
             className="min-w-0 overflow-hidden transition-all duration-300"
-            style={{ width: isCollapsed ? 0 : 160, opacity: isCollapsed ? 0 : 1 }}
+            style={{ width: isCollapsed ? 0 : 152, opacity: isCollapsed ? 0 : 1 }}
           >
-            <p className="truncate text-sm font-bold tracking-tight" style={{ color: darkMode ? "#f1f5f9" : "#0f172a" }}>
+            <p className="truncate text-sm font-bold tracking-tight" style={{ color: T.labelColor }}>
               SPGST Pro
             </p>
-            <p
-              className="truncate text-[9px] font-semibold uppercase tracking-[0.2em]"
-              style={{ color: darkMode ? "#64748b" : "#94a3b8" }}
-            >
+            <p className="truncate text-[9px] font-semibold uppercase tracking-[0.2em]" style={{ color: T.mutedLabel }}>
               GST Accounting
             </p>
           </div>
         </div>
 
-        {/* Collapse + Close buttons */}
         <div className="flex shrink-0 items-center gap-0.5">
           <button
             type="button"
@@ -213,270 +256,257 @@ export default function Sidebar({
             title={isCollapsed ? "Expand (Ctrl+B)" : "Collapse (Ctrl+B)"}
             data-sidebar-focusable="true"
             aria-label="Toggle sidebar"
-            className="group relative grid h-7 w-7 place-items-center rounded-lg transition-all duration-200"
-            style={{ color: darkMode ? "#64748b" : "#94a3b8" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            className="grid h-7 w-7 place-items-center rounded-lg transition-all duration-200"
+            style={{ color: T.toggleColor }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = T.toggleHover; e.currentTarget.style.color = T.labelColor; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.toggleColor; }}
           >
-            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {isCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
           </button>
           <button
             type="button"
             onClick={onCloseMobile}
             className="lg:hidden grid h-7 w-7 place-items-center rounded-lg transition-all duration-200"
-            style={{ color: darkMode ? "#64748b" : "#94a3b8" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            style={{ color: T.toggleColor }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = T.toggleHover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             aria-label="Close sidebar"
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
       </div>
 
-      {/* ── Navigation ─────────────────────────────────────────────── */}
-      <nav className="thin-scrollbar flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-0.5">
-        {sidebarMenuConfig.map((group) => {
-          const Icon = iconMap[group.icon as keyof typeof iconMap] ?? Home;
-          const hasChildren = Boolean(group.children?.length);
-          const isExpanded = openGroupId === group.id;
-          const groupIsActive = activeGroup === group.id;
+      {/* ── Nav ──────────────────────────────────────────────────────────────── */}
+      <nav className="thin-scrollbar flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
 
-          return (
-            <div key={group.id}>
-              {/* Group / single item button */}
-              <button
-                type="button"
-                title={isCollapsed ? group.label : undefined}
-                data-sidebar-focusable="true"
-                onClick={() => {
-                  if (!hasChildren) {
-                    onSelectMenu(group.id);
-                    onCloseMobile();
-                    return;
-                  }
-                  setOpenGroupId((prev) => (prev === group.id ? null : group.id));
-                }}
-                className="group relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm outline-none transition-all duration-200"
-                style={{
-                  background: groupIsActive
-                    ? darkMode
-                      ? "linear-gradient(90deg, rgba(99,102,241,0.25) 0%, rgba(99,102,241,0.08) 100%)"
-                      : "linear-gradient(90deg, rgba(6,182,212,0.12) 0%, rgba(6,182,212,0.04) 100%)"
-                    : "transparent",
-                  color: groupIsActive
-                    ? darkMode ? "#a5b4fc" : "#0891b2"
-                    : darkMode ? "#94a3b8" : "#64748b",
-                }}
-                onMouseEnter={(e) => {
-                  if (!groupIsActive) {
-                    e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
-                    e.currentTarget.style.color = darkMode ? "#e2e8f0" : "#1e293b";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!groupIsActive) {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = darkMode ? "#94a3b8" : "#64748b";
-                  }
-                }}
-              >
-                {/* Active indicator bar */}
-                {groupIsActive && (
+        {!isCollapsed && (
+          <p
+            className="mb-2.5 px-2.5 text-[9px] font-bold uppercase tracking-[0.22em]"
+            style={{ color: T.mutedLabel }}
+          >
+            Navigation
+          </p>
+        )}
+
+        <div className="space-y-0.5">
+          {sidebarMenuConfig.map((group) => {
+            const Icon = iconMap[group.icon as keyof typeof iconMap] ?? Home;
+            const hasChildren = Boolean(group.children?.length);
+            const isExpanded = openGroupId === group.id;
+            const groupIsActive = activeGroup === group.id;
+            const accent = groupAccents[group.id] ?? groupAccents["settings"];
+            const showDivider = group.id === "online" || group.id === "settings";
+
+            // Active colours
+            const activeIconBg  = hexToRgba(accent.hex, darkMode ? 0.18 : 0.12);
+            const activeRowBg   = hexToRgba(accent.hex, darkMode ? 0.1 : 0.07);
+            const activeTextColor = accent.hex;
+
+            return (
+              <div key={group.id}>
+                {showDivider && (
+                  <div className={`${isCollapsed ? "my-2 mx-1" : "my-2 mx-2"} h-px`} style={{ background: T.border }} />
+                )}
+
+                {/* Group button */}
+                <button
+                  type="button"
+                  data-sidebar-focusable="true"
+                  onClick={() => {
+                    if (!hasChildren) { onSelectMenu(group.id); onCloseMobile(); return; }
+                    setOpenGroupId((prev) => (prev === group.id ? null : group.id));
+                  }}
+                  className="group relative flex w-full items-center rounded-xl px-2 py-1.5 outline-none transition-all duration-200"
+                  style={{
+                    gap: isCollapsed ? 0 : 10,
+                    background: groupIsActive ? activeRowBg : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!groupIsActive) e.currentTarget.style.background = T.hoverRowBg;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!groupIsActive) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {/* Active left bar */}
+                  {groupIsActive && (
+                    <span
+                      className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full"
+                      style={{
+                        background: `linear-gradient(180deg,${accent.hex},${hexToRgba(accent.hex, 0.5)})`,
+                        boxShadow: darkMode ? `0 0 10px ${accent.glow}` : "none",
+                      }}
+                    />
+                  )}
+
+                  {/* Icon block */}
                   <span
-                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full"
+                    className="group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                     style={{
-                      background: darkMode
-                        ? "linear-gradient(180deg,#818cf8,#6366f1)"
-                        : "linear-gradient(180deg,#22d3ee,#0891b2)",
+                      background: groupIsActive ? activeIconBg : T.iconBaseBg,
+                      boxShadow: groupIsActive && darkMode ? `0 0 14px ${accent.glow}` : "none",
                     }}
-                  />
-                )}
+                  >
+                    <Icon
+                      size={15}
+                      style={{ color: groupIsActive ? activeTextColor : T.iconBase }}
+                    />
+                    {isCollapsed && <Tooltip label={group.label} color={accent.hex} dark={darkMode} />}
+                  </span>
 
-                {/* Icon */}
-                <span
-                  className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200"
-                  style={{
-                    background: groupIsActive
-                      ? darkMode ? "rgba(99,102,241,0.2)" : "rgba(6,182,212,0.15)"
-                      : "transparent",
-                  }}
-                >
-                  <Icon size={15} />
-                  {/* Tooltip (collapsed only) */}
-                  {isCollapsed && <Tooltip label={group.label} />}
-                </span>
+                  {/* Label */}
+                  <span
+                    className="flex-1 truncate text-left text-[13px] font-semibold transition-all duration-300"
+                    style={{
+                      opacity: isCollapsed ? 0 : 1,
+                      maxWidth: isCollapsed ? 0 : 170,
+                      color: groupIsActive ? activeTextColor : T.labelColor,
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {group.label}
+                  </span>
 
-                {/* Label */}
-                <span
-                  className="flex-1 truncate text-left font-medium transition-all duration-300"
-                  style={{
-                    opacity: isCollapsed ? 0 : 1,
-                    maxWidth: isCollapsed ? 0 : 200,
-                  }}
-                >
-                  {group.label}
-                </span>
+                  {/* Chevron */}
+                  {!isCollapsed && hasChildren && (
+                    <ChevronDown
+                      size={12}
+                      className="mr-0.5 shrink-0 transition-transform duration-300"
+                      style={{
+                        transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                        color: groupIsActive ? activeTextColor : T.mutedLabel,
+                        opacity: 0.7,
+                      }}
+                    />
+                  )}
+                </button>
 
-                {/* Chevron */}
+                {/* Children accordion */}
                 {!isCollapsed && hasChildren && (
-                  <ChevronDown
-                    size={13}
-                    className="shrink-0 transition-transform duration-300"
-                    style={{
-                      transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                      opacity: 0.5,
-                    }}
-                  />
-                )}
-              </button>
-
-              {/* Children accordion */}
-              {!isCollapsed && hasChildren && (
-                <div
-                  className="overflow-hidden transition-all duration-300 ease-in-out"
-                  style={{ maxHeight: isExpanded ? 300 : 0, opacity: isExpanded ? 1 : 0 }}
-                >
-                  <div className="ml-9 mt-0.5 space-y-0.5 py-0.5">
-                    {group.children!.map((child) => {
-                      const childActive = activeMenu === child.id;
-                      return (
-                        <button
-                          key={child.id}
-                          type="button"
-                          data-sidebar-focusable="true"
-                          onClick={() => { onSelectMenu(child.id); onCloseMobile(); }}
-                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium outline-none transition-all duration-200"
-                          style={{
-                            background: childActive
-                              ? darkMode ? "rgba(99,102,241,0.18)" : "rgba(6,182,212,0.12)"
-                              : "transparent",
-                            color: childActive
-                              ? darkMode ? "#a5b4fc" : "#0891b2"
-                              : darkMode ? "#64748b" : "#94a3b8",
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!childActive) {
-                              e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
-                              e.currentTarget.style.color = darkMode ? "#cbd5e1" : "#334155";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!childActive) {
-                              e.currentTarget.style.background = "transparent";
-                              e.currentTarget.style.color = darkMode ? "#64748b" : "#94a3b8";
-                            }
-                          }}
-                        >
-                          {/* Active dot */}
-                          <span
-                            className="h-1 w-1 shrink-0 rounded-full transition-all duration-200"
-                            style={{
-                              background: childActive
-                                ? darkMode ? "#818cf8" : "#0891b2"
-                                : darkMode ? "#334155" : "#cbd5e1",
-                              transform: childActive ? "scale(1.4)" : "scale(1)",
-                            }}
-                          />
-                          {child.label}
-                        </button>
-                      );
-                    })}
+                  <div
+                    className="overflow-hidden transition-all duration-300 ease-in-out"
+                    style={{ maxHeight: isExpanded ? 480 : 0, opacity: isExpanded ? 1 : 0 }}
+                  >
+                    <div
+                      className="relative ml-6 mt-0.5 pl-4 pb-1"
+                      style={{ borderLeft: `1.5px solid ${T.connectorLine}` }}
+                    >
+                      <div className="space-y-0.5">
+                        {group.children!.map((child) => {
+                          const childActive = activeMenu === child.id;
+                          return (
+                            <button
+                              key={child.id}
+                              type="button"
+                              data-sidebar-focusable="true"
+                              onClick={() => { onSelectMenu(child.id); onCloseMobile(); }}
+                              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-[12px] font-medium outline-none transition-all duration-200"
+                              style={{
+                                background: childActive ? hexToRgba(accent.hex, darkMode ? 0.12 : 0.08) : "transparent",
+                                color: childActive ? activeTextColor : T.childLabel,
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!childActive) {
+                                  e.currentTarget.style.background = T.hoverRowBg;
+                                  e.currentTarget.style.color = T.childHover;
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!childActive) {
+                                  e.currentTarget.style.background = "transparent";
+                                  e.currentTarget.style.color = T.childLabel;
+                                }
+                              }}
+                            >
+                              <span
+                                className="h-1.5 w-1.5 shrink-0 rounded-full transition-all duration-200"
+                                style={{
+                                  background: childActive ? accent.hex : (darkMode ? "#1e293b" : "#cbd5e1"),
+                                  boxShadow: childActive && darkMode ? `0 0 6px ${accent.glow}` : "none",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              {child.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                )}
+              </div>
+            );
+          })}
+        </div>
       </nav>
 
-      {/* ── Bottom user card ───────────────────────────────────────── */}
-      <div
-        className="shrink-0 p-2"
-        style={{
-          borderTop: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.07)",
-        }}
-      >
-        {/* Collapsed: icon buttons only */}
+      {/* ── Bottom card ──────────────────────────────────────────────────────── */}
+      <div className="shrink-0 p-2" style={{ borderTop: `1px solid ${T.border}` }}>
         {isCollapsed ? (
           <div className="space-y-1">
             <button
               type="button"
-              title="Switch Client"
               data-sidebar-focusable="true"
               onClick={onSwitchClient}
               className="group relative grid w-full place-items-center rounded-xl py-2 transition-all duration-200"
-              style={{ color: darkMode ? "#64748b" : "#94a3b8" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"; e.currentTarget.style.color = darkMode ? "#e2e8f0" : "#1e293b"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = darkMode ? "#64748b" : "#94a3b8"; }}
+              style={{ color: T.switchBtnColor }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = T.switchBtnHover; e.currentTarget.style.color = T.switchBtnHoverColor; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.switchBtnColor; }}
             >
-              <UserRoundSearch size={16} />
-              <Tooltip label="Switch Client" />
+              <UserRoundSearch size={15} />
+              <Tooltip label="Switch Client" dark={darkMode} />
             </button>
             <button
               type="button"
-              title="Sign Out"
               data-sidebar-focusable="true"
               onClick={onLogout}
               className="group relative grid w-full place-items-center rounded-xl py-2 transition-all duration-200"
               style={{ color: "#ef4444" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.1)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
             >
-              <LogOut size={16} />
-              <Tooltip label="Sign Out" />
+              <LogOut size={15} />
+              <Tooltip label="Sign Out" color="#ef4444" dark={darkMode} />
             </button>
           </div>
         ) : (
-          /* Expanded: rich card */
           <div
-            className="rounded-xl p-3 transition-all duration-300"
-            style={{
-              background: darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
-              border: darkMode ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.07)",
-            }}
+            className="rounded-2xl p-3"
+            style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}` }}
           >
-            {/* Avatar + client info */}
-            <div className="mb-3 flex items-center gap-2.5 overflow-hidden">
-              {/* Avatar */}
+            <div className="mb-3 flex items-center gap-2.5">
               <div
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold text-white shadow"
-                style={{ background: "linear-gradient(135deg,#0ea5e9,#6366f1)" }}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-black text-white"
+                style={{
+                  background: "linear-gradient(135deg,#6366f1,#06b6d4)",
+                  boxShadow: darkMode ? "0 0 16px rgba(99,102,241,0.35)" : "0 4px 10px rgba(99,102,241,0.25)",
+                }}
               >
                 {(selectedClientName || "?").charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p
-                  className="truncate text-xs font-semibold"
-                  style={{ color: darkMode ? "#e2e8f0" : "#1e293b" }}
-                >
+                <p className="truncate text-[13px] font-bold leading-tight" style={{ color: T.clientNameColor }}>
                   {selectedClientName || "No client"}
                 </p>
-                <p
-                  className="text-[10px]"
-                  style={{ color: darkMode ? "#475569" : "#94a3b8" }}
-                >
-                  v{appVersion}
-                </p>
+                <p className="font-mono text-[9px] tracking-wider" style={{ color: T.versionColor }}>v{appVersion}</p>
               </div>
             </div>
 
-            {/* Action buttons */}
             <div className="space-y-1.5">
               <button
                 type="button"
                 data-sidebar-focusable="true"
                 onClick={() => { onSwitchClient(); onCloseMobile(); }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200"
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200"
                 style={{
-                  background: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-                  color: darkMode ? "#94a3b8" : "#64748b",
-                  border: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.07)",
+                  color: T.switchBtnColor,
+                  border: `1px solid ${T.switchBtnBorder}`,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = darkMode ? "#e2e8f0" : "#1e293b"; e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = darkMode ? "#94a3b8" : "#64748b"; e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = T.switchBtnHover; e.currentTarget.style.color = T.switchBtnHoverColor; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.switchBtnColor; }}
               >
-                <UserRoundSearch size={13} />
+                <UserRoundSearch size={12} />
                 Switch Client
               </button>
 
@@ -484,28 +514,23 @@ export default function Sidebar({
                 type="button"
                 data-sidebar-focusable="true"
                 onClick={() => { onLogout(); onCloseMobile(); }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200"
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200"
                 style={{
-                  background: "rgba(239,68,68,0.08)",
+                  background: "rgba(239,68,68,0.07)",
                   color: "#ef4444",
-                  border: "1px solid rgba(239,68,68,0.18)",
+                  border: "1px solid rgba(239,68,68,0.14)",
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.14)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.07)"}
               >
-                <LogOut size={13} />
+                <LogOut size={12} />
                 Sign Out
               </button>
             </div>
 
-            {!isCollapsed && (
-              <p
-                className="mt-2.5 text-[9px] leading-tight"
-                style={{ color: darkMode ? "#334155" : "#cbd5e1" }}
-              >
-                ↑↓ navigate · Enter select · Ctrl+B toggle
-              </p>
-            )}
+            <p className="mt-2.5 text-[9px] leading-tight" style={{ color: T.footerHint }}>
+              ↑↓ navigate · Enter select · Ctrl+B toggle
+            </p>
           </div>
         )}
       </div>
@@ -514,7 +539,6 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Desktop fixed sidebar */}
       <div
         className="hidden lg:fixed lg:left-0 lg:z-30 lg:block"
         style={{ top: "var(--titlebar-height, 38px)", bottom: 0 }}
@@ -522,10 +546,8 @@ export default function Sidebar({
         {content}
       </div>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">
-          {/* Backdrop */}
           <button
             type="button"
             className="absolute inset-0 backdrop-blur-sm"

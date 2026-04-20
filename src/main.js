@@ -187,6 +187,10 @@ function setupIpcHandlers() {
     return clientService.saveSale(payload || {});
   }));
 
+  registerHandle('update-sale', withService((_, payload) => {
+    return clientService.updateSale(payload || {});
+  }));
+
   registerHandle('load-sales', withService((_, payload) => {
     return clientService.loadSales(payload || {});
   }));

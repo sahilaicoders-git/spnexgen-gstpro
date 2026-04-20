@@ -1951,6 +1951,32 @@ function createClientDataService(baseDataDir) {
     return { ok: true };
   }
 
+  function updateSale(input) {
+    validateSaleInput(input);
+
+    const saleType = String(input.saleType || '').toLowerCase();
+    const context = getMonthFileContext(input.gstin, input.financialYear, input.month);
+    const payload = readMonthPayload(context);
+    const sale = input.sale;
+    const id = String(sale.id || '').trim();
+
+    if (!id) {
+      throw new Error('Sale id is required for update');
+    }
+
+    const index = payload.sales[saleType].findIndex((s) => String(s.id || '') === id);
+    if (index === -1) {
+      throw new Error('Sale record not found for update');
+    }
+
+    // Preserve original id, replace everything else
+    const updated = { ...sale, id };
+    payload.sales[saleType][index] = updated;
+    writeMonthPayload(context, payload);
+
+    return { ok: true, sale: updated };
+  }
+
   function exportSales(input) {
     const context = getMonthFileContext(input.gstin, input.financialYear, input.month);
 
@@ -3757,6 +3783,7 @@ function createClientDataService(baseDataDir) {
     loadPurchase,
     deletePurchase,
     saveSale,
+    updateSale,
     loadSales,
     deleteSale,
     exportSales,
