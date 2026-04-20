@@ -47,7 +47,9 @@ type UpdateState =
   | { phase: "idle" }
   | { phase: "checking" }
   | { phase: "upToDate"; version: string }
-  | { phase: "available"; current: string; latest: string; releaseUrl: string; releaseNotes: string }
+  | { phase: "available"; current: string; latest: string; releaseUrl: string; releaseNotes: string; devMode?: boolean }
+  | { phase: "downloading"; percentage: number }
+  | { phase: "downloaded"; version: string; releaseNotes: string }
   | { phase: "error"; message: string };
 
 type Props = {
@@ -101,6 +103,45 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
   }, []);
 
   useEffect(() => {
+    if (!window.gstAPI?.onUpdaterEvent) return;
+
+    const cleanup = window.gstAPI.onUpdaterEvent((data: any) => {
+      switch (data.event) {
+        case "checking":
+          setUpdateState({ phase: "checking" });
+          break;
+        case "available":
+          setUpdateState({
+            phase: "available",
+            current: appVersion,
+            latest: data.version,
+            releaseUrl: "",
+            releaseNotes: data.releaseNotes || "",
+          });
+          break;
+        case "not-available":
+          setUpdateState({ phase: "upToDate", version: appVersion });
+          break;
+        case "download-progress":
+          setUpdateState({ phase: "downloading", percentage: data.percent });
+          break;
+        case "downloaded":
+          setUpdateState({
+            phase: "downloaded",
+            version: data.version,
+            releaseNotes: data.releaseNotes || "",
+          });
+          break;
+        case "error":
+          setUpdateState({ phase: "error", message: data.message || "Update failed." });
+          break;
+      }
+    });
+
+    return cleanup;
+  }, [appVersion]);
+
+  useEffect(() => {
     if (!selectedClient) return;
     setClientName(selectedClient.clientName);
     setClientType(selectedClient.clientType || "Regular");
@@ -145,16 +186,46 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
     setUpdateState({ phase: "checking" });
     try {
       const result = await window.gstAPI.checkForUpdates();
-      if (!result.ok) { setUpdateState({ phase: "error", message: "Could not reach update server. Check your internet connection." }); return; }
-      if (result.hasUpdate) {
-        setUpdateState({ phase: "available", current: result.currentVersion, latest: result.latestVersion, releaseUrl: result.releaseUrl, releaseNotes: result.releaseNotes });
+      if (!result.ok) {
+        setUpdateState({ phase: "error", message: result.error || "Could not reach update server. Check your internet connection." });
+        return;
+      }
+
+      // If in devMode, main process returns result directly instead of using events
+      if (result.devMode && result.hasUpdate) {
+        setUpdateState({
+          phase: "available",
+          current: result.currentVersion,
+          latest: result.latestVersion,
+          releaseUrl: result.releaseUrl,
+          releaseNotes: result.releaseNotes,
+          devMode: true,
+        });
         setTimeout(() => notesRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
-      } else {
+      } else if (result.devMode && !result.hasUpdate) {
         setUpdateState({ phase: "upToDate", version: result.currentVersion });
       }
+      // If triggeredAutoUpdater is true, we wait for 'updater-event' via IPC (handled by useEffect)
     } catch {
       setUpdateState({ phase: "error", message: "Unexpected error while checking for updates." });
     }
+  };
+
+  const handleDownloadUpdate = async () => {
+    if (!window.gstAPI) return;
+    try {
+      const result = await window.gstAPI.downloadUpdate();
+      if (!result.ok) {
+        setUpdateState({ phase: "error", message: result.reason || "Failed to start download." });
+      }
+    } catch {
+      setUpdateState({ phase: "error", message: "Error starting download." });
+    }
+  };
+
+  const handleInstallUpdate = () => {
+    if (!window.gstAPI) return;
+    window.gstAPI.installUpdate();
   };
 
   const handleBackup = async () => {
@@ -487,25 +558,105 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
                 <div ref={notesRef} className="space-y-3">
                   <div className="flex items-center justify-between gap-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 dark:border-indigo-700 dark:from-indigo-950/40 dark:to-blue-950/40">
                     <div>
-                      <p className="text-sm font-bold text-indigo-800 dark:text-indigo-200">🆕 Update Available — v{updateState.latest}</p>
-                      <p className="mt-0.5 text-xs text-indigo-600 dark:text-indigo-400">Current: v{updateState.current} → Latest: v{updateState.latest}</p>
+                      <p className="text-sm font-bold text-indigo-800 dark:text-indigo-200">
+                        🆕 Update Available — v{updateState.latest}
+                      </p>
+                      <p className="mt-0.5 text-xs text-indigo-600 dark:text-indigo-400">
+                        Current: v{updateState.current} → Latest: v{updateState.latest}
+                      </p>
                     </div>
-                    <button id="download-update-btn" type="button"
-                      onClick={() => window.gstAPI?.openExternalUrl(updateState.releaseUrl)}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
-                      <ExternalLink size={13} /> Download Installer
-                    </button>
+                    {updateState.devMode ? (
+                      <button
+                        id="download-manual-btn"
+                        type="button"
+                        onClick={() => window.gstAPI?.openExternalUrl(updateState.releaseUrl)}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                      >
+                        <ExternalLink size={13} /> Download Installer
+                      </button>
+                    ) : (
+                      <button
+                        id="download-auto-btn"
+                        type="button"
+                        onClick={handleDownloadUpdate}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                      >
+                        <Download size={13} /> Download Now
+                      </button>
+                    )}
                   </div>
                   {updateState.releaseNotes && (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
                       <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Release Notes</p>
-                      <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">{updateState.releaseNotes}</pre>
-                      <button type="button" onClick={() => window.gstAPI?.openExternalUrl(updateState.releaseUrl)}
-                        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-                        View full release on GitHub <ChevronRight size={11} />
-                      </button>
+                      <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                        {updateState.releaseNotes}
+                      </pre>
+                      {updateState.releaseUrl && (
+                        <button
+                          type="button"
+                          onClick={() => window.gstAPI?.openExternalUrl(updateState.releaseUrl)}
+                          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                        >
+                          View full release on GitHub <ChevronRight size={11} />
+                        </button>
+                      )}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Downloading state */}
+              {updateState.phase === "downloading" && (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-700 dark:bg-indigo-950/40">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Loader2 size={16} className="animate-spin text-indigo-600" />
+                        <p className="text-sm font-bold text-indigo-800 dark:text-indigo-200">Downloading update...</p>
+                      </div>
+                      <span className="text-xs font-bold text-indigo-600">{updateState.percentage}%</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-indigo-200 dark:bg-indigo-900">
+                      <div
+                        className="h-full bg-indigo-600 transition-all duration-300"
+                        style={{ width: `${updateState.percentage}%` }}
+                      ></div>
+                    </div>
+                    <p className="mt-3 text-xs text-indigo-500">
+                      SPGST Pro is fetching the latest version. You can keep working while the update downloads.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Downloaded state */}
+              {updateState.phase === "downloaded" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 dark:border-emerald-700 dark:bg-emerald-950/40">
+                    <div>
+                      <p className="text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                        ✅ Update Ready — v{updateState.version}
+                      </p>
+                      <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">
+                        The update has been downloaded and is ready to install
+                      </p>
+                    </div>
+                    <button
+                      id="install-now-btn"
+                      type="button"
+                      onClick={handleInstallUpdate}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-500"
+                    >
+                      <RefreshCw size={14} /> Install & Restart Now
+                    </button>
+                  </div>
+                  <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30">
+                    <Shield size={15} className="mt-0.5 shrink-0 text-amber-500" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      <strong>Don't worry:</strong> Your GST data and folder settings are stored separately and will
+                      remain safe after the update.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

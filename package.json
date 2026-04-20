@@ -10,6 +10,13 @@
     "dist:mac": "npm run build:renderer && electron-builder --mac dmg"
   },
   "build": {
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "sahilaicoders-git",
+        "repo": "spnexgen-gstpro"
+      }
+    ],
     "appId": "com.spgst.desktop",
     "productName": "SPGST Pro",
     "directories": {
@@ -33,7 +40,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "${productName}-Setup-${version}.${ext}",
@@ -55,7 +64,9 @@
     },
     "mac": {
       "icon": "build/icons/icon.icns",
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.business"
     }
   },
@@ -73,6 +84,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.8.0",
     "pdfkit": "^0.18.0",
     "react": "^19.2.5",

@@ -70,6 +70,13 @@ contextBridge.exposeInMainWorld('gstAPI', {
   getAppSettings: () => ipcRenderer.invoke('get-app-settings'),
   changeDataDirectory: () => ipcRenderer.invoke('change-data-directory'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.send('install-update'),
+  onUpdaterEvent: (callback) => {
+    const listener = (_, data) => callback(data);
+    ipcRenderer.on('updater-event', listener);
+    return () => ipcRenderer.removeListener('updater-event', listener);
+  },
   openExternalUrl: (url) => ipcRenderer.send('open-external-url', url),
   restartApp: () => ipcRenderer.send('restart-app'),
   getGstCredentials: () => ipcRenderer.invoke('get-gst-credentials'),

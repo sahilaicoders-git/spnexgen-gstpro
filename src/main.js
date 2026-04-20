@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } = require('ele
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const { autoUpdater } = require('electron-updater');
 const { createClientDataService } = require('./services/clientDataService');
 
 let splashWindow;
@@ -11,6 +12,62 @@ let ipcHandlersReady = false;
 
 let dataRoot = '';
 let clientService = null;
+
+// ── Auto-updater configuration ────────────────────────────────────────────────
+autoUpdater.autoDownload = false;          // We ask the user first
+autoUpdater.autoInstallOnAppQuit = false;  // We install on explicit user request
+// In dev mode there is no update server, so skip the check gracefully
+autoUpdater.allowPrerelease = false;
+
+function sendUpdaterEvent(event, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updater-event', { event, ...data });
+  }
+}
+
+function initAutoUpdater() {
+  // Only run the real updater in packaged builds; in dev just expose the channel
+  if (!app.isPackaged) {
+    // In dev, expose a stub so the UI still loads without errors
+    return;
+  }
+
+  autoUpdater.on('checking-for-update', () => {
+    sendUpdaterEvent('checking');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    sendUpdaterEvent('available', {
+      version: info.version,
+      releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : (Array.isArray(info.releaseNotes) ? info.releaseNotes.map(r => r.note || '').join('\n') : ''),
+      releaseDate: info.releaseDate
+    });
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    sendUpdaterEvent('not-available', { version: info.version });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    sendUpdaterEvent('download-progress', {
+      percent: Math.round(progress.percent),
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    sendUpdaterEvent('downloaded', {
+      version: info.version,
+      releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : ''
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    sendUpdaterEvent('error', { message: err ? err.message : 'Unknown error' });
+  });
+}
 
 const SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json');
 
@@ -386,50 +443,72 @@ function setupIpcHandlers() {
     return { changed: true, newPath, needsRestart: true };
   });
 
-  registerHandle('check-for-updates', () => {
-    return new Promise((resolve) => {
-      const currentVersion = app.getVersion();
-      const options = {
-        hostname: 'api.github.com',
-        path: '/repos/sahilaicoders-git/spnexgen-gstpro/releases/latest',
-        method: 'GET',
-        headers: { 'User-Agent': 'SPGST-Pro-App' }
-      };
+  // ── Auto-updater IPC ──────────────────────────────────────────────────────
+  registerHandle('check-for-updates', async () => {
+    const currentVersion = app.getVersion();
 
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const release = JSON.parse(data);
-            const latestVersion = (release.tag_name || '').replace(/^v/, '');
-            const hasUpdate = latestVersion && latestVersion !== currentVersion &&
-              latestVersion.localeCompare(currentVersion, undefined, { numeric: true, sensitivity: 'base' }) > 0;
-            resolve({
-              ok: true,
-              currentVersion,
-              latestVersion: latestVersion || currentVersion,
-              hasUpdate: !!hasUpdate,
-              releaseUrl: release.html_url || '',
-              releaseNotes: release.body || ''
-            });
-          } catch {
-            resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '' });
-          }
+    if (!app.isPackaged) {
+      // Dev mode: fall back to GitHub API check (no updater server available)
+      return new Promise((resolve) => {
+        const options = {
+          hostname: 'api.github.com',
+          path: '/repos/sahilaicoders-git/spnexgen-gstpro/releases/latest',
+          method: 'GET',
+          headers: { 'User-Agent': 'SPGST-Pro-App' }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            try {
+              const release = JSON.parse(data);
+              const latestVersion = (release.tag_name || '').replace(/^v/, '');
+              const hasUpdate = latestVersion && latestVersion !== currentVersion &&
+                latestVersion.localeCompare(currentVersion, undefined, { numeric: true, sensitivity: 'base' }) > 0;
+              resolve({
+                ok: true, currentVersion,
+                latestVersion: latestVersion || currentVersion,
+                hasUpdate: !!hasUpdate,
+                releaseUrl: release.html_url || '',
+                releaseNotes: release.body || '',
+                devMode: true
+              });
+            } catch {
+              resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '', devMode: true });
+            }
+          });
         });
+        req.on('error', () => resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '', devMode: true }));
+        req.setTimeout(8000, () => { req.destroy(); resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '', devMode: true }); });
+        req.end();
       });
+    }
 
-      req.on('error', () => {
-        resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '' });
-      });
+    // Packaged: trigger electron-updater (results come via 'updater-event' IPC events)
+    try {
+      await autoUpdater.checkForUpdates();
+      return { ok: true, currentVersion, triggeredAutoUpdater: true };
+    } catch (err) {
+      return { ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '', error: err?.message };
+    }
+  });
 
-      req.setTimeout(8000, () => {
-        req.destroy();
-        resolve({ ok: false, currentVersion, latestVersion: currentVersion, hasUpdate: false, releaseUrl: '', releaseNotes: '' });
-      });
+  registerHandle('download-update', async () => {
+    if (!app.isPackaged) return { ok: false, reason: 'dev-mode' };
+    try {
+      await autoUpdater.downloadUpdate();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, reason: err?.message };
+    }
+  });
 
-      req.end();
-    });
+  ipcMain.removeAllListeners('install-update');
+  ipcMain.on('install-update', () => {
+    // quitAndInstall(isSilent, isForceRunAfter)
+    // isSilent=false shows the installer UI so user sees progress
+    // The data folder is in userData / a custom path — completely untouched
+    autoUpdater.quitAndInstall(false, true);
   });
 
 
@@ -674,6 +753,7 @@ app.whenReady().then(async () => {
   clientService = createClientDataService(dataRoot);
   clientService.ensureClientsRoot();
   setupIpcHandlers();
+  initAutoUpdater();
 
   createSplashWindow();
 
