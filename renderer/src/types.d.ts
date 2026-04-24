@@ -5,6 +5,8 @@ export type ClientRecord = {
   clientType: string;
   status: string;
   financialYears: string[];
+  returnFrequency?: "Monthly" | "Quarterly";
+  invoicePrefix?: string;
 };
 
 export type MonthPayload = {
@@ -459,6 +461,8 @@ declare global {
         clientType?: string;
         status?: string;
         financialYear?: string;
+        returnFrequency?: "Monthly" | "Quarterly";
+        invoicePrefix?: string;
       }) => Promise<unknown>;
       loadMonthData: (payload: {
         gstin: string;
@@ -623,6 +627,24 @@ declare global {
         fromDate?: string;
         toDate?: string;
       }) => Promise<{ b2b: SaleRecord[]; b2c: SaleRecord[] }>;
+      previewSalesImport: (payload: {
+        gstin: string;
+        financialYear: string;
+        month: string;
+        filePath: string;
+      }) => Promise<{
+        rows: SaleRecord[];
+        summary: { total: number; valid: number; duplicates: number; errors: number };
+        requiredMissing: string[];
+        warning?: string;
+      }>;
+      importSalesData: (payload: {
+        gstin: string;
+        financialYear: string;
+        month: string;
+        previewData: SaleRecord[];
+        overwrite: boolean;
+      }) => Promise<{ imported: number }>;
       deleteSale: (payload: {
         gstin: string;
         financialYear: string;

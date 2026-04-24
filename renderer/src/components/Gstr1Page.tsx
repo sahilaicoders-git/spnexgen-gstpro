@@ -819,6 +819,7 @@ export default function Gstr1Page({
                 <th className="px-3 py-2 text-left">HSN Code</th>
                 <th className="px-3 py-2 text-left">Description</th>
                 <th className="px-3 py-2 text-left">Quantity</th>
+                <th className="px-3 py-2 text-left">GST Rate</th>
                 <th className="px-3 py-2 text-left">Taxable Value</th>
                 <th className="px-3 py-2 text-left">IGST</th>
                 <th className="px-3 py-2 text-left">CGST</th>
@@ -831,6 +832,7 @@ export default function Gstr1Page({
                   <td className="px-3 py-2">{row.HSN}</td>
                   <td className="px-3 py-2 min-w-[280px]">{row.Description}</td>
                   <td className="px-3 py-2">{row["Total Quantity"]}</td>
+                  <td className="px-3 py-2">{row.Rate}%</td>
                   <td className="px-3 py-2">{currency(row["Taxable Value"])}</td>
                   <td className="px-3 py-2 text-cyan-700">{currency(row.IGST)}</td>
                   <td className="px-3 py-2 text-emerald-700">{currency(row.CGST)}</td>
@@ -839,7 +841,7 @@ export default function Gstr1Page({
               ))}
               {hsnRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-3 py-8 text-center text-slate-500">
                     No HSN rows found.
                   </td>
                 </tr>
@@ -847,7 +849,7 @@ export default function Gstr1Page({
             </tbody>
             <tfoot className="sticky bottom-0 bg-gray-100 text-sm font-bold text-slate-800">
               <tr className="border-t border-slate-300">
-                <td className="px-3 py-2" colSpan={3}>TOTAL</td>
+                <td className="px-3 py-2" colSpan={4}>TOTAL</td>
                 <td className="px-3 py-2">{currency(hsnTotals.taxable)}</td>
                 <td className="px-3 py-2 text-cyan-800">{currency(hsnTotals.igst)}</td>
                 <td className="px-3 py-2 text-emerald-800">{currency(hsnTotals.cgst)}</td>
@@ -1025,8 +1027,12 @@ export default function Gstr1Page({
             <p className="mt-1 text-lg font-semibold text-slate-800">{currency(data.summary.totalTaxableValue)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Total GST (IGST+CGST+SGST)</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Total Regular GST</p>
             <p className="mt-1 text-lg font-semibold text-slate-800">{currency(data.summary.totalGst)}</p>
+          </div>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Reverse Charge GST (Deemed)</p>
+            <p className="mt-1 text-lg font-bold text-blue-800">{currency(data.summary.reverseChargeGst || 0)}</p>
           </div>
         </div>
       )}

@@ -46,6 +46,8 @@ const MONTHS = [
   "March",
 ];
 
+const QUARTERS = ["Apr-Jun", "Jul-Sep", "Oct-Dec", "Jan-Mar"];
+
 function getCurrentMonthLabel(date = new Date()): string {
   const monthIndex = date.getMonth();
   const fiscalIndex = (monthIndex + 9) % 12;
@@ -57,6 +59,18 @@ function getCurrentFinancialYearLabel(date = new Date()): string {
   const month = date.getMonth();
   const startYear = month >= 3 ? year : year - 1;
   return `FY_${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
+}
+
+function getFinancialYearRange(currentFyLabel: string, count = 5): string[] {
+  const match = currentFyLabel.match(/FY_(\d{4})-\d{2}/);
+  if (!match) return [currentFyLabel];
+  const startYear = parseInt(match[1], 10);
+  const range: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const y = startYear - i;
+    range.push(`FY_${y}-${String((y + 1) % 100).padStart(2, "0")}`);
+  }
+  return range;
 }
 
 function dedupeRecent(clients: ClientRecord[]): ClientRecord[] {
@@ -205,6 +219,17 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const periodOptions = useMemo(() => {
+    if (selectedClient?.returnFrequency === "Quarterly") return QUARTERS;
+    return MONTHS;
+  }, [selectedClient]);
+
+  useEffect(() => {
+    if (!periodOptions.includes(month)) {
+      setMonth(periodOptions[0]);
+    }
+  }, [periodOptions, month]);
+
   const handleSelectClient = async (client: ClientRecord) => {
     setSelectedClient(client);
     localStorage.setItem(SELECTED_CLIENT_KEY, JSON.stringify(client));
@@ -289,13 +314,17 @@ export default function App() {
   };
 
   const financialYearOptions = useMemo(() => {
-    if (!selectedClient) return [financialYear];
-    if (selectedClient.financialYears.length === 0) return [financialYear];
-    return selectedClient.financialYears;
+    const baseRange = getFinancialYearRange(getCurrentFinancialYearLabel());
+    const options = new Set<string>([...baseRange, financialYear]);
+    if (selectedClient) {
+      (selectedClient.financialYears || []).forEach((fy) => options.add(fy));
+    }
+    return Array.from(options).sort((a, b) => b.localeCompare(a));
   }, [selectedClient, financialYear]);
 
   const clientSelectionFinancialYearOptions = useMemo(() => {
-    const options = new Set<string>([financialYear]);
+    const baseRange = getFinancialYearRange(getCurrentFinancialYearLabel());
+    const options = new Set<string>([...baseRange, financialYear]);
     clients.forEach((client) => {
       (client.financialYears || []).forEach((fy) => options.add(fy));
     });
@@ -313,6 +342,7 @@ export default function App() {
           selectedClient={client}
           financialYear={financialYear}
           month={month}
+          monthOptions={periodOptions}
           monthData={monthData}
           onQuickAction={(menuId) => setActiveMenu(menuId)}
         />
@@ -351,6 +381,18 @@ export default function App() {
       );
     }
 
+    if (activeMenu === "sales-import") {
+      return (
+        <GstSalesModule
+          selectedClient={client}
+          financialYear={financialYear}
+          month={month}
+          mode="import"
+          onStatus={setStatusText}
+        />
+      );
+    }
+
     if (activeMenu === "sales-export") {
       return (
         <GstSalesModule
@@ -370,7 +412,7 @@ export default function App() {
           financialYear={financialYear}
           month={month}
           financialYearOptions={financialYearOptions}
-          monthOptions={MONTHS}
+          monthOptions={periodOptions}
           onChangeFinancialYear={setFinancialYear}
           onChangeMonth={setMonth}
           onStatus={setStatusText}
@@ -385,7 +427,7 @@ export default function App() {
           financialYear={financialYear}
           month={month}
           financialYearOptions={financialYearOptions}
-          monthOptions={MONTHS}
+          monthOptions={periodOptions}
           onChangeFinancialYear={setFinancialYear}
           onChangeMonth={setMonth}
           onStatus={setStatusText}
@@ -448,7 +490,7 @@ export default function App() {
           financialYear={financialYear}
           month={month}
           financialYearOptions={financialYearOptions}
-          monthOptions={MONTHS}
+          monthOptions={periodOptions}
           mode="monthly"
           onChangeFinancialYear={setFinancialYear}
           onChangeMonth={setMonth}
@@ -464,7 +506,7 @@ export default function App() {
           financialYear={financialYear}
           month={month}
           financialYearOptions={financialYearOptions}
-          monthOptions={MONTHS}
+          monthOptions={periodOptions}
           mode="gst"
           onChangeFinancialYear={setFinancialYear}
           onChangeMonth={setMonth}
@@ -480,7 +522,7 @@ export default function App() {
           financialYear={financialYear}
           month={month}
           financialYearOptions={financialYearOptions}
-          monthOptions={MONTHS}
+          monthOptions={periodOptions}
           mode="yearly"
           onChangeFinancialYear={setFinancialYear}
           onChangeMonth={setMonth}
@@ -557,7 +599,7 @@ export default function App() {
             financialYear={financialYear}
             financialYearOptions={clientSelectionFinancialYearOptions}
             month={month}
-            monthOptions={MONTHS}
+            monthOptions={periodOptions}
             onFinancialYearChange={setFinancialYear}
             onMonthChange={setMonth}
             onOpenAddClient={() => setRoute("add-client")}
@@ -642,7 +684,7 @@ export default function App() {
             financialYear={financialYear}
             financialYearOptions={financialYearOptions}
             month={month}
-            monthOptions={MONTHS}
+            monthOptions={periodOptions}
             onFinancialYearChange={setFinancialYear}
             onMonthChange={setMonth}
             onSwitchClient={() => setRoute("client-selection")}

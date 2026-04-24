@@ -28,6 +28,7 @@ export const sidebarMenuConfig: SidebarMenuGroup[] = [
     icon: "receipt",
     children: [
       { id: "sales-add", label: "Add Sale" },
+      { id: "sales-import", label: "Import Sales" },
       { id: "sales-summary", label: "Sales Summary" },
       { id: "sales-export", label: "Export Sales" },
     ],

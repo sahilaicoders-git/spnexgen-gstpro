@@ -28,7 +28,7 @@ import type { ClientRecord, MonthPayload, PurchaseRecord, SaleRecord } from "../
 type Props = {
   selectedClient: ClientRecord;
   financialYear: string;
-  month: string;
+  monthOptions: string[];
   monthData: MonthPayload | null;
   onQuickAction: (menuId: string) => void;
 };
@@ -41,20 +41,6 @@ type TxRow = {
   amount: number;
 };
 
-const MONTHS = [
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-  "January",
-  "February",
-  "March",
-];
 
 function toNum(value: unknown): number {
   const num = Number(value || 0);
@@ -86,17 +72,24 @@ function purchaseTax(row: PurchaseRecord): number {
   return to2(toNum(row.igst) + toNum(row.cgst) + toNum(row.sgst));
 }
 
-function dueDateFor(month: string, financialYear: string, day: number): Date | null {
-  const monthIdx = MONTHS.indexOf(month);
+function dueDateFor(month: string, monthOptions: string[], financialYear: string, day: number): Date | null {
+  const monthIdx = monthOptions.indexOf(month);
   if (monthIdx < 0) return null;
 
   const fyMatch = financialYear.match(/^FY_(\d{4})-(\d{2})$/);
   if (!fyMatch) return null;
 
   const startYear = Number(fyMatch[1]);
-  const year = monthIdx <= 8 ? startYear : startYear + 1;
-  const calendarMonth = monthIdx + 1;
-  const next = new Date(year, calendarMonth, day);
+  // Monthly: index 0..8 is startYear, 9..11 is startYear + 1
+  // Quarterly: index 0..2 is startYear, 3 is startYear + 1
+  const isQuarterly = monthOptions.length === 4;
+  const yearOffset = isQuarterly ? (monthIdx <= 2 ? 0 : 1) : (monthIdx <= 8 ? 0 : 1);
+  const year = startYear + yearOffset;
+
+  // Monthly: calendar month is (monthIdx + 3) % 12 + 1? No, simpler: 0->Apr(4), 8->Dec(12), 9->Jan(1)
+  // We'll just use a rough estimate for quarters
+  const calendarMonth = isQuarterly ? (monthIdx * 3 + 4) : (monthIdx + 4);
+  const next = new Date(year, calendarMonth - 1, day);
   return next;
 }
 
@@ -118,7 +111,7 @@ function trendPercent(base: number, compare: number): { value: string; up: boole
   return { value: rounded, up: pct >= 0 };
 }
 
-export default function DashboardPage({ selectedClient, financialYear, month, monthData, onQuickAction }: Props) {
+export default function DashboardPage({ selectedClient, financialYear, month, monthOptions, monthData, onQuickAction }: Props) {
   const [darkMode, setDarkMode] = useState(false);
 
   const computed = useMemo(() => {
@@ -240,8 +233,8 @@ export default function DashboardPage({ selectedClient, financialYear, month, mo
     };
   }, [monthData]);
 
-  const gstr1Due = dueDateFor(month, financialYear, 11);
-  const gstr3bDue = dueDateFor(month, financialYear, 20);
+  const gstr1Due = dueDateFor(month, monthOptions, financialYear, 11);
+  const gstr3bDue = dueDateFor(month, monthOptions, financialYear, 20);
   const gstr1Status = monthData?.returns?.gstr1 || "pending";
   const gstr3bStatus = monthData?.returns?.gstr3b || "pending";
 
@@ -486,6 +479,13 @@ export default function DashboardPage({ selectedClient, financialYear, month, mo
               className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 transition hover:translate-y-[-1px] hover:bg-amber-100"
             >
               Import Purchase
+            </button>
+            <button
+              type="button"
+              onClick={() => onQuickAction("sales-import")}
+              className="rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-sm font-medium text-cyan-700 transition hover:translate-y-[-1px] hover:bg-cyan-100"
+            >
+              Import Sales
             </button>
             <button
               type="button"

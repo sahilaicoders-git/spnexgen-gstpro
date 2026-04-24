@@ -248,6 +248,14 @@ function setupIpcHandlers() {
     return clientService.updateSale(payload || {});
   }));
 
+  registerHandle('preview-sales-import', withService((_, payload) => {
+    return clientService.previewSalesImport(payload || {});
+  }));
+
+  registerHandle('import-sales-data', withService((_, payload) => {
+    return clientService.importSalesData(payload || {});
+  }));
+
   registerHandle('load-sales', withService((_, payload) => {
     return clientService.loadSales(payload || {});
   }));

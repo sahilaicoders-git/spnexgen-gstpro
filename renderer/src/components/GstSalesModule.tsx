@@ -76,7 +76,7 @@ function generateB2BCSVContent(b2bSales: SaleRecord[]): string {
         formatDateForCsv(sale.date),
         sale.total_value.toFixed(0),
         buildPosString(sale.place_of_supply || ""),
-        sale.reverse_charge ? "Y" : "N",
+        sale.reverse_charge === "Yes" ? "Y" : "N",
         "",                      // Applicable % of Tax Rate
         "Regular B2B",           // Invoice Type
         "",                      // E-Commerce GSTIN
@@ -105,44 +105,47 @@ type Props = {
   selectedClient: ClientRecord;
   financialYear: string;
   month: string;
-  mode: "add" | "summary" | "export";
+  mode: "add" | "summary" | "export" | "import";
   onStatus: (text: string) => void;
 };
 
 const STATES = [
-  "Jammu & Kashmir",
-  "Himachal Pradesh",
-  "Punjab",
-  "Chandigarh",
-  "Uttarakhand",
-  "Haryana",
-  "Delhi",
-  "Rajasthan",
-  "Uttar Pradesh",
-  "Bihar",
-  "Sikkim",
-  "Arunachal Pradesh",
-  "Nagaland",
-  "Manipur",
-  "Mizoram",
-  "Tripura",
-  "Meghalaya",
-  "Assam",
-  "West Bengal",
-  "Jharkhand",
-  "Odisha",
-  "Chhattisgarh",
-  "Madhya Pradesh",
-  "Gujarat",
-  "Maharashtra",
-  "Karnataka",
-  "Goa",
-  "Kerala",
-  "Tamil Nadu",
-  "Puducherry",
-  "Telangana",
-  "Andhra Pradesh",
-  "Ladakh",
+  "01-Jammu & Kashmir",
+  "02-Himachal Pradesh",
+  "03-Punjab",
+  "04-Chandigarh",
+  "05-Uttarakhand",
+  "06-Haryana",
+  "07-Delhi",
+  "08-Rajasthan",
+  "09-Uttar Pradesh",
+  "10-Bihar",
+  "11-Sikkim",
+  "12-Arunachal Pradesh",
+  "13-Nagaland",
+  "14-Manipur",
+  "15-Mizoram",
+  "16-Tripura",
+  "17-Meghalaya",
+  "18-Assam",
+  "19-West Bengal",
+  "20-Jharkhand",
+  "21-Odisha",
+  "22-Chhattisgarh",
+  "23-Madhya Pradesh",
+  "24-Gujarat",
+  "26-Dadra & Nagar Haveli and Daman & Diu",
+  "27-Maharashtra",
+  "29-Karnataka",
+  "30-Goa",
+  "31-Lakshadweep",
+  "32-Kerala",
+  "33-Tamil Nadu",
+  "34-Puducherry",
+  "35-Andaman & Nicobar Islands",
+  "36-Telangana",
+  "37-Andhra Pradesh",
+  "38-Ladakh",
 ];
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
@@ -199,11 +202,22 @@ function emptyItem(srNo: number): SaleItem {
   };
 }
 
-function createInvoiceNumber(prefix: string) {
-  const random = Math.floor(Math.random() * 10000)
-    .toString()
-    .padStart(4, "0");
-  return `${prefix}-${random}`;
+function createInvoiceNumber(prefix: string, existingSales: SaleRecord[] = []) {
+  if (!existingSales || existingSales.length === 0) {
+    return `${prefix}1`;
+  }
+
+  const numericSuffixes = existingSales
+    .filter((s) => s.invoice_no.startsWith(prefix))
+    .map((s) => {
+      const suffix = s.invoice_no.slice(prefix.length);
+      const num = parseInt(suffix, 10);
+      return isNaN(num) ? 0 : num;
+    });
+
+  const maxSuffix = numericSuffixes.length > 0 ? Math.max(...numericSuffixes) : 0;
+  const nextNum = (maxSuffix + 1).toString();
+  return `${prefix}${nextNum}`;
 }
 
 // ── Edit Modal ─────────────────────────────────────────────────────────────────
@@ -211,14 +225,17 @@ type EditModalProps = {
   sale: SaleRecord;
   saleType: "b2b" | "b2c";
   supplierState: string;
+  customerMaster: MasterPartyResponse;
+  clientGstin: string;
   onSave: (updated: SaleRecord) => Promise<void>;
   onClose: () => void;
+  onRefreshCustomers: () => Promise<void>;
 };
 
-function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditModalProps) {
+function EditSaleModal({ sale, saleType, supplierState, customerMaster, clientGstin, onSave, onClose, onRefreshCustomers }: EditModalProps) {
   const [invoiceNo, setInvoiceNo] = useState(sale.invoice_no);
   const [invoiceDate, setInvoiceDate] = useState(sale.date);
-  const [placeOfSupply, setPlaceOfSupply] = useState(sale.place_of_supply || "Maharashtra");
+  const [placeOfSupply, setPlaceOfSupply] = useState(sale.place_of_supply || supplierState);
   const [reverseCharge, setReverseCharge] = useState<"Yes" | "No">(
     (sale.reverse_charge as "Yes" | "No") || "No"
   );
@@ -232,6 +249,56 @@ function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditM
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Customer suggestion state for modal
+  const [customerQuery, setCustomerQuery] = useState(sale.buyer_gstin || "");
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerQuery.trim().toLowerCase();
+    if (!q) return customerMaster.entries;
+    return customerMaster.entries.filter((row) => {
+      return row.gstin.toLowerCase().includes(q) || row.name.toLowerCase().includes(q);
+    });
+  }, [customerMaster.entries, customerQuery]);
+
+  const selectCustomer = async (customer: { gstin: string; name: string; state: string }) => {
+    setBuyerGstin(customer.gstin);
+    setBuyerName(customer.name);
+    if (customer.state) {
+      const withCode = STATES.find(s => s.includes(customer.state));
+      setPlaceOfSupply(withCode || customer.state);
+    }
+    setCustomerQuery(customer.gstin);
+    setShowCustomerSuggestions(false);
+
+    await window.gstAPI.saveCustomer({
+      gstin: clientGstin,
+      customer,
+      touchRecent: true,
+    });
+    await onRefreshCustomers();
+  };
+
+  const handleCustomerFavorite = async (gstin: string, favorite: boolean) => {
+    await window.gstAPI.toggleCustomerFavorite({ gstin: clientGstin, customerGstin: gstin, favorite });
+    await onRefreshCustomers();
+  };
+
+  const handleCustomerDelete = async (gstin: string) => {
+    await window.gstAPI.deleteCustomer({ gstin: clientGstin, customerGstin: gstin });
+    await onRefreshCustomers();
+  };
+
+  const handleCustomerRename = async (option: { gstin: string; name: string; state: string }) => {
+    const nextName = window.prompt("Customer name", option.name) || option.name;
+    const nextState = window.prompt("State", option.state || placeOfSupply) || option.state;
+    await window.gstAPI.updateCustomer({
+      gstin: clientGstin,
+      customer: { gstin: option.gstin, name: nextName, state: nextState },
+    });
+    await onRefreshCustomers();
+  };
 
   const interstate = placeOfSupply !== supplierState;
 
@@ -287,7 +354,7 @@ function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditM
     return {
       taxable: Number(taxable.toFixed(2)),
       gstAmount: Number(gstAmount.toFixed(2)),
-      total: Number((taxable + gstAmount).toFixed(2)),
+      total: Math.round(taxable + (reverseCharge === "Yes" ? 0 : gstAmount)),
     };
   }, [items]);
 
@@ -381,15 +448,31 @@ function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditM
 
             {saleType === "b2b" && (
               <>
-                <div>
-                  <label className="text-xs font-medium text-slate-600">Buyer GSTIN</label>
-                  <input
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm uppercase focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                    value={buyerGstin}
-                    maxLength={15}
-                    onChange={(e) => setBuyerGstin(e.target.value.toUpperCase())}
-                  />
-                </div>
+                <PartyLookupDropdown
+                  label="Buyer GSTIN"
+                  gstinValue={buyerGstin}
+                  query={customerQuery}
+                  placeholder="Search GSTIN or customer"
+                  options={filteredCustomers}
+                  show={showCustomerSuggestions}
+                  onShowChange={setShowCustomerSuggestions}
+                  onQueryChange={setCustomerQuery}
+                  onGstinChange={(next) => {
+                    setBuyerGstin(next);
+                    setCustomerQuery(next);
+                  }}
+                  onSelect={selectCustomer}
+                  onAddNew={() => {
+                    setBuyerGstin("");
+                    setCustomerQuery("");
+                    setBuyerName("");
+                    setShowCustomerSuggestions(false);
+                  }}
+                  addNewLabel="Clear / Add New"
+                  onToggleFavorite={handleCustomerFavorite}
+                  onDelete={handleCustomerDelete}
+                  onRename={handleCustomerRename}
+                />
                 <div>
                   <label className="text-xs font-medium text-slate-600">Buyer Name</label>
                   <input
@@ -530,7 +613,7 @@ function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditM
                 GST: <span className="font-semibold">{totals.gstAmount.toFixed(2)}</span>
               </div>
               <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm">
-                Total: <span className="font-semibold text-cyan-700">{totals.total.toFixed(2)}</span>
+                Total: <span className="font-semibold text-cyan-700">₹{Math.round(totals.total).toLocaleString("en-IN")}</span>
               </div>
             </div>
           </div>
@@ -564,12 +647,16 @@ function EditSaleModal({ sale, saleType, supplierState, onSave, onClose }: EditM
 }
 
 export default function GstSalesModule({ selectedClient, financialYear, month, mode, onStatus }: Props) {
+  const supplierCode = selectedClient.gstin.slice(0, 2);
+  const supplierName = STATE_CODES[supplierCode] || "Maharashtra";
+  const supplierState = `${supplierCode}-${supplierName}`;
+
   const [saleType, setSaleType] = useState<"b2b" | "b2c">("b2b");
-  const [invoiceNo, setInvoiceNo] = useState(createInvoiceNumber("INV"));
+  const [invoiceNo, setInvoiceNo] = useState(createInvoiceNumber(selectedClient.invoicePrefix || "INV"));
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [buyerGstin, setBuyerGstin] = useState("");
   const [buyerName, setBuyerName] = useState("");
-  const [placeOfSupply, setPlaceOfSupply] = useState("Maharashtra");
+  const [placeOfSupply, setPlaceOfSupply] = useState(supplierState);
   const [reverseCharge, setReverseCharge] = useState<"Yes" | "No">("No");
   const [b2cType, setB2cType] = useState<"B2C Large" | "B2C Small">("B2C Small");
   const [items, setItems] = useState<SaleItem[]>([emptyItem(1)]);
@@ -587,10 +674,91 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
   const [validationError, setValidationError] = useState("");
   const [openAfterExport, setOpenAfterExport] = useState(true);
 
+  useEffect(() => {
+    // Synchronize invoice number with current client's prefix preference and next available number
+    const relevantSales = saleType === "b2b" ? salesData.b2b : salesData.b2c;
+    setInvoiceNo(createInvoiceNumber(selectedClient.invoicePrefix || "INV", relevantSales));
+  }, [selectedClient.gstin, selectedClient.invoicePrefix, salesData, saleType]);
+
+  // ── Import state ────────────────────────────────────────────────────────────
+  const [fileName, setFileName] = useState("");
+  const [previewRows, setPreviewRows] = useState<SaleRecord[]>([]);
+  const [previewMissingColumns, setPreviewMissingColumns] = useState<string[]>([]);
+  const [previewSummary, setPreviewSummary] = useState({ total: 0, valid: 0, duplicates: 0, errors: 0 });
+  const [previewWarning, setPreviewWarning] = useState("");
+  const [overwriteImport, setOverwriteImport] = useState(false);
+  const [selectedFilePath, setSelectedFilePath] = useState("");
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+      onStatus("Invalid file type. Please upload .xlsx");
+      return;
+    }
+    setFileName(file.name);
+    const pathFromElectronFile = (file as File & { path?: string }).path || "";
+    if (!pathFromElectronFile) {
+      onStatus("File path not available.");
+      return;
+    }
+    setSelectedFilePath(pathFromElectronFile);
+
+    try {
+      const result = await window.gstAPI.previewSalesImport({
+        gstin: selectedClient.gstin,
+        financialYear,
+        month,
+        filePath: pathFromElectronFile,
+      });
+
+      if (!result.ok && result.warning) {
+        setPreviewWarning(result.warning);
+      } else {
+        setPreviewWarning("");
+      }
+
+      setPreviewMissingColumns(result.requiredMissing || []);
+      setPreviewRows(result.rows || []);
+      setPreviewSummary(result.summary || { total: 0, valid: 0, duplicates: 0, errors: 0 });
+    } catch (err: any) {
+      onStatus(`Error: ${err.message}`);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!selectedFilePath || previewRows.length === 0) {
+      onStatus("Please select file first.");
+      return;
+    }
+    try {
+      const result = await window.gstAPI.importSalesData({
+        gstin: selectedClient.gstin,
+        financialYear,
+        month,
+        previewData: previewRows,
+        overwrite: overwriteImport,
+      });
+      onStatus(`${result.imported || 0} records imported successfully`);
+      cancelImport();
+      loadSales();
+    } catch (err: any) {
+      onStatus(`Import failed: ${err.message}`);
+    }
+  };
+
+  const cancelImport = () => {
+    setFileName("");
+    setSelectedFilePath("");
+    setPreviewRows([]);
+    setPreviewMissingColumns([]);
+    setPreviewWarning("");
+    setPreviewSummary({ total: 0, valid: 0, duplicates: 0, errors: 0 });
+  };
+
   // ── Edit state ──────────────────────────────────────────────────────────────
   const [editSale, setEditSale] = useState<{ sale: SaleRecord; saleType: "b2b" | "b2c" } | null>(null);
 
-  const supplierState = STATE_CODES[selectedClient.gstin.slice(0, 2)] || "Maharashtra";
   const interstate = placeOfSupply !== supplierState;
 
   const recalculateItems = (list: SaleItem[]) => {
@@ -654,13 +822,25 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
 
   useEffect(() => {
     if (saleType !== "b2b") return;
+    
+    // Auto-fill state based on first 2 digits of GSTIN
+    if (buyerGstin.length >= 2) {
+      const code = buyerGstin.slice(0, 2);
+      const matchedState = STATES.find(s => s.startsWith(code));
+      if (matchedState) setPlaceOfSupply(matchedState);
+    }
+
     if (!GSTIN_REGEX.test(buyerGstin)) return;
     if (buyerName.trim()) return;
 
     const existing = customerMaster.entries.find((c) => c.gstin.toUpperCase() === buyerGstin.toUpperCase());
     if (existing) {
       setBuyerName(existing.name);
-      if (existing.state) setPlaceOfSupply(existing.state);
+      if (existing.state) {
+        const withCode = STATES.find(s => s.includes(existing.state));
+        if (withCode) setPlaceOfSupply(withCode);
+        else setPlaceOfSupply(existing.state);
+      }
       return;
     }
 
@@ -674,9 +854,9 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
     return {
       taxable: Number(taxable.toFixed(2)),
       gstAmount: Number(gstAmount.toFixed(2)),
-      total: Number((taxable + gstAmount).toFixed(2)),
+      total: Number((taxable + (reverseCharge === "Yes" ? 0 : gstAmount)).toFixed(2)),
     };
-  }, [items]);
+  }, [items, reverseCharge]);
 
   const loadSales = async () => {
     setLoading(true);
@@ -924,6 +1104,170 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
       </section>
     );
   }
+  if (mode === "import") {
+    return (
+      <section className="space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">Import Sales (Excel)</h2>
+              <p className="mt-1 text-sm text-slate-500">Upload Excel file, preview, validate, and confirm import to B2B sales.</p>
+            </div>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                // Simple template generation or download instruction could go here
+                alert("Template should have columns: buyerGstin, invoiceNo, invoiceDate, taxableValue, gstRate (optional), igst, cgst, sgst, buyerName (optional), placeOfSupply (optional)");
+              }}
+              className="text-xs font-medium text-cyan-600 hover:underline"
+            >
+              View Template Requirements
+            </a>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700 transition shadow-sm">
+              <Plus size={16} />
+              Upload Excel
+              <input type="file" accept=".xlsx" className="hidden" onChange={onPickFile} />
+            </label>
+            {fileName && (
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                <FileSpreadsheet size={14} className="text-emerald-500" />
+                <span className="font-medium">{fileName}</span>
+              </div>
+            )}
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                checked={overwriteImport}
+                onChange={(e) => setOverwriteImport(e.target.checked)}
+              />
+              Overwrite existing
+            </label>
+            <button
+              type="button"
+              onClick={confirmImport}
+              disabled={previewRows.length === 0}
+              className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              Confirm Import
+            </button>
+          </div>
+
+          {previewWarning && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
+              <X size={16} className="text-amber-500" />
+              {previewWarning}
+            </div>
+          )}
+
+          {previewMissingColumns.length > 0 && (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <p className="font-semibold mb-1">Missing required columns:</p>
+              <div className="flex flex-wrap gap-2">
+                {previewMissingColumns.map(col => (
+                  <span key={col} className="rounded bg-rose-100 px-2 py-0.5 text-xs">{col}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Total Rows</p>
+              <p className="text-xl font-bold text-slate-700">{previewSummary.total}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold">Valid</p>
+              <p className="text-xl font-bold text-emerald-700">{previewSummary.valid}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-amber-600 font-bold">Duplicate</p>
+              <p className="text-xl font-bold text-amber-700">{previewSummary.duplicates}</p>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-rose-600 font-bold">Error</p>
+              <p className="text-xl font-bold text-rose-700">{previewSummary.errors}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={cancelImport}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition"
+            >
+              Cancel / Reset
+            </button>
+            <p className="text-xs text-slate-400 italic">* Only showing up to 100 rows in preview</p>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="max-h-[45vh] overflow-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 z-10">
+                  <tr>
+                    <th className="px-4 py-3">Buyer GSTIN</th>
+                    <th className="px-4 py-3">Invoice No</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Taxable Value</th>
+                    <th className="px-4 py-3">GST Amount</th>
+                    <th className="px-4 py-3">Total</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {previewRows.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-12 text-center text-slate-400 italic">
+                        No preview data available. Please upload a file.
+                      </td>
+                    </tr>
+                  )}
+                  {previewRows.map((row, idx) => (
+                    <tr
+                      key={idx}
+                      className={
+                        row.status === "error"
+                          ? "bg-rose-50/50"
+                          : row.status === "duplicate"
+                          ? "bg-amber-50/50"
+                          : "hover:bg-slate-50 transition-colors"
+                      }
+                    >
+                      <td className="px-4 py-2 font-mono text-xs text-slate-700">{row.buyer_gstin}</td>
+                      <td className="px-4 py-2 text-slate-700 font-medium">{row.invoice_no}</td>
+                      <td className="px-4 py-2 text-slate-600">{row.date}</td>
+                      <td className="px-4 py-2 text-slate-700">₹{row.taxable_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-2 text-slate-700">₹{(row.gst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-2 text-slate-700 font-semibold">₹{row.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-2">
+                        <span
+                          title={row.errorMessage}
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                            row.status === "error"
+                              ? "bg-rose-100 text-rose-700"
+                              : row.status === "duplicate"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {row.status || "valid"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (mode === "summary") {
     return (
@@ -934,8 +1278,14 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
             sale={editSale.sale}
             saleType={editSale.saleType}
             supplierState={supplierState}
+            customerMaster={customerMaster}
+            clientGstin={selectedClient.gstin}
             onSave={handleUpdateSale}
             onClose={() => setEditSale(null)}
+            onRefreshCustomers={async () => {
+              const refreshed = await window.gstAPI.loadCustomers({ gstin: selectedClient.gstin });
+              setCustomerMaster(refreshed);
+            }}
           />
         )}
 
@@ -1020,7 +1370,7 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
                         </td>
                         <td className="px-3 py-2 text-slate-700">₹{sale.taxable_value.toFixed(2)}</td>
                         <td className="px-3 py-2 text-slate-700">₹{sale.gst_amount.toFixed(2)}</td>
-                        <td className="px-3 py-2 font-semibold text-slate-800">₹{sale.total_value.toFixed(2)}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-800">₹{Math.round(sale.total_value).toLocaleString("en-IN")}</td>
                         <td className="px-3 py-2 text-right">
                           <div className="inline-flex items-center gap-1.5">
                             <button
@@ -1073,7 +1423,7 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
                   <span>
                     Total:{" "}
                     <strong className="text-emerald-700">
-                      ₹{rows.reduce((s, r) => s + r.total_value, 0).toFixed(2)}
+                      ₹{Math.round(rows.reduce((s, r) => s + (r.reverse_charge === "Yes" ? r.taxable_value : r.total_value), 0)).toLocaleString("en-IN")}
                     </strong>
                   </span>
                 </div>
@@ -1132,7 +1482,20 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div>
             <label className="text-xs font-medium text-slate-600">Invoice Number</label>
-            <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
+            <div className="mt-1 flex items-center">
+              <span className="inline-flex h-[42px] items-center rounded-l-xl border border-r-0 border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+                {selectedClient.invoicePrefix || "INV"}
+              </span>
+              <input
+                className="w-full h-[42px] rounded-r-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-cyan-500 focus:outline-none"
+                value={invoiceNo.startsWith(selectedClient.invoicePrefix || "INV") ? invoiceNo.slice((selectedClient.invoicePrefix || "INV").length) : invoiceNo}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const pref = selectedClient.invoicePrefix || "INV";
+                  setInvoiceNo(pref + val);
+                }}
+              />
+            </div>
           </div>
           <div>
             <label className="text-xs font-medium text-slate-600">Invoice Date</label>
@@ -1256,7 +1619,7 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">Taxable: <span className="font-semibold">{totals.taxable.toFixed(2)}</span></div>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">GST: <span className="font-semibold">{totals.gstAmount.toFixed(2)}</span></div>
-          <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm">Total: <span className="font-semibold">{totals.total.toFixed(2)}</span></div>
+          <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-3 text-sm">Total: <span className="font-semibold">₹{Math.round(totals.total).toLocaleString("en-IN")}</span></div>
         </div>
 
         {validationError && <p className="mt-3 text-sm text-rose-600">{validationError}</p>}
@@ -1265,7 +1628,10 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
           <button type="button" onClick={saveSale} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
             <FileSpreadsheet size={16} /> Save Sale
           </button>
-          <button type="button" onClick={() => setInvoiceNo(createInvoiceNumber("INV"))} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
+          <button type="button" onClick={() => {
+            const relevantSales = saleType === "b2b" ? salesData.b2b : salesData.b2c;
+            setInvoiceNo(createInvoiceNumber(selectedClient.invoicePrefix || "INV", relevantSales));
+          }} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
             Auto Invoice
           </button>
         </div>

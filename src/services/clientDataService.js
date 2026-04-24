@@ -19,6 +19,13 @@ const MONTHS = [
   'March'
 ];
 
+const QUARTERS = [
+  'Apr-Jun',
+  'Jul-Sep',
+  'Oct-Dec',
+  'Jan-Mar'
+];
+
 const GST_RATES = [5, 12, 18, 28];
 
 const INDIAN_STATES = [
@@ -375,11 +382,13 @@ function buildGstr1Snapshot(payload, sellerGstin) {
 
   const addHsn = (item, invoiceValue) => {
     const hsn = String(item.hsn_sac || item.hsn_code || '').trim() || 'NA';
-    const key = hsn.toUpperCase();
+    const rate = toNum(item.gst_rate);
+    const key = `${hsn.toUpperCase()}::${rate}`;
     const current = hsnMap.get(key) || {
       HSN: hsn,
       Description: String(item.description || '').trim() || 'NA',
       UQC: 'NOS',
+      Rate: rate,
       'Total Quantity': 0,
       'Total Value': 0,
       'Taxable Value': 0,
@@ -528,12 +537,18 @@ function buildGstr1Snapshot(payload, sellerGstin) {
   const gstTotals = allSales.reduce(
     (acc, sale) => {
       const tax = calculateSaleTaxes(sale.items);
-      acc.igst += tax.igst;
-      acc.cgst += tax.cgst;
-      acc.sgst += tax.sgst;
+      if (sale.reverse_charge === 'Yes') {
+        acc.rcIgst += tax.igst;
+        acc.rcCgst += tax.cgst;
+        acc.rcSgst += tax.sgst;
+      } else {
+        acc.igst += tax.igst;
+        acc.cgst += tax.cgst;
+        acc.sgst += tax.sgst;
+      }
       return acc;
     },
-    { igst: 0, cgst: 0, sgst: 0 }
+    { igst: 0, cgst: 0, sgst: 0, rcIgst: 0, rcCgst: 0, rcSgst: 0 }
   );
 
   const invalidGstRows = [];
@@ -563,7 +578,11 @@ function buildGstr1Snapshot(payload, sellerGstin) {
       totalGst: to2(gstTotals.igst + gstTotals.cgst + gstTotals.sgst),
       igst: to2(gstTotals.igst),
       cgst: to2(gstTotals.cgst),
-      sgst: to2(gstTotals.sgst)
+      sgst: to2(gstTotals.sgst),
+      reverseChargeGst: to2(gstTotals.rcIgst + gstTotals.rcCgst + gstTotals.rcSgst),
+      rcIgst: to2(gstTotals.rcIgst),
+      rcCgst: to2(gstTotals.rcCgst),
+      rcSgst: to2(gstTotals.rcSgst)
     },
     documentSummary: {
       totalInvoicesIssued,
@@ -1076,10 +1095,14 @@ function createClientDataService(baseDataDir) {
     const fyPath = path.join(clientsRoot, folderName, financialYear);
     fs.mkdirSync(fyPath, { recursive: true });
 
-    MONTHS.forEach((month) => {
-      const filePath = path.join(fyPath, `${month}.json`);
+    const meta = readClientMeta(folderName);
+    const frequency = meta?.returnFrequency || "Monthly";
+    const periods = frequency === "Quarterly" ? QUARTERS : MONTHS;
+
+    periods.forEach((period) => {
+      const filePath = path.join(fyPath, `${period}.json`);
       if (!fs.existsSync(filePath)) {
-        const payload = getClientMonthTemplate(clientName, gstin, financialYear, month);
+        const payload = getClientMonthTemplate(clientName, gstin, financialYear, period);
         fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
       }
     });
@@ -1116,6 +1139,8 @@ function createClientDataService(baseDataDir) {
         gstin,
         clientType: meta?.clientType || 'Regular',
         status: meta?.status || 'Active',
+        returnFrequency: meta?.returnFrequency || 'Monthly',
+        invoicePrefix: meta?.invoicePrefix || 'INV',
         financialYears: fs.readdirSync(path.join(clientsRoot, folderName), { withFileTypes: true })
           .filter((d) => d.isDirectory() && d.name.startsWith('FY_'))
           .map((d) => d.name)
@@ -1136,20 +1161,26 @@ function createClientDataService(baseDataDir) {
       throw new Error('clientName and gstin are required');
     }
 
-    if (findFolderByGstin(gstin)) {
-      throw new Error('Duplicate GSTIN folder already exists');
+    const existingFolder = findFolderByGstin(gstin);
+    const folderName = existingFolder || `${sanitizeName(clientName)}_${gstin}`;
+    const folderPath = path.join(clientsRoot, folderName);
+    
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
     }
 
-    const folderName = `${sanitizeName(clientName)}_${gstin}`;
-    const folderPath = path.join(clientsRoot, folderName);
-    fs.mkdirSync(folderPath, { recursive: true });
+    const existingMeta = readClientMeta(folderName) || {};
 
     writeClientMeta(folderName, {
+      ...existingMeta,
       clientName,
       gstin,
       clientType,
       status,
-      createdAt: new Date().toISOString()
+      returnFrequency: input.returnFrequency || existingMeta.returnFrequency || 'Monthly',
+      invoicePrefix: input.invoicePrefix !== undefined ? input.invoicePrefix : (existingMeta.invoicePrefix || 'INV'),
+      updatedAt: new Date().toISOString(),
+      createdAt: existingMeta.createdAt || new Date().toISOString()
     });
 
     ensureFyMonthFiles(folderName, financialYear, clientName, gstin);
@@ -1249,8 +1280,16 @@ function createClientDataService(baseDataDir) {
   }
 
   function readMonthPayload(context) {
-    const raw = fs.readFileSync(context.filePath, 'utf8');
-    return normalizeMonthPayload(JSON.parse(raw));
+    if (!fs.existsSync(context.filePath)) {
+      return getClientMonthTemplate(context.clientName, context.gstin, context.financialYear, context.month);
+    }
+    try {
+      const raw = fs.readFileSync(context.filePath, 'utf8');
+      return normalizeMonthPayload(JSON.parse(raw));
+    } catch (err) {
+      console.error(`Error reading month payload at ${context.filePath}:`, err);
+      return getClientMonthTemplate(context.clientName, context.gstin, context.financialYear, context.month);
+    }
   }
 
   function writeMonthPayload(context, payload) {
@@ -1747,6 +1786,165 @@ function createClientDataService(baseDataDir) {
       duplicates,
       errors
     };
+  }
+
+  function parseImportedSalesRows(sheetRows) {
+    if (!Array.isArray(sheetRows) || sheetRows.length === 0) {
+      return { requiredMissing: ['No data rows found'], mappedRows: [] };
+    }
+
+    const aliases = {
+      buyerGstin: ['gstinuinofrecipient', 'buyergstin', 'gstin', 'receivergstin'],
+      buyerName: ['receivername', 'buyername', 'name'],
+      invoiceNo: ['invoicenumber', 'invoice no', 'invoiceno'],
+      invoiceDate: ['invoicedate', 'invoice date', 'date'],
+      invoiceValue: ['invoicevalue', 'invoice value', 'totalvalue'],
+      taxableValue: ['taxablevalue', 'taxable value', 'taxable'],
+      gstRate: ['rate', 'gstrate', 'taxrate'],
+      igst: ['igst', 'igstamount'],
+      cgst: ['cgst', 'cgstamount'],
+      sgst: ['sgst', 'sgstamount'],
+      placeOfSupply: ['placeofsupply', 'pos', 'supplyplace']
+    };
+
+    const firstRow = sheetRows[0];
+    const keyMap = {};
+
+    Object.keys(firstRow).forEach((header) => {
+      const normalizedHeader = normalizeHeaderName(header);
+      Object.entries(aliases).forEach(([field, list]) => {
+        if (!keyMap[field] && list.includes(normalizedHeader)) {
+          keyMap[field] = header;
+        }
+      });
+    });
+
+    const requiredFields = ['buyerGstin', 'invoiceNo', 'invoiceDate', 'taxableValue'];
+    const requiredMissing = requiredFields.filter((field) => !keyMap[field]);
+    if (requiredMissing.length > 0) {
+      return { requiredMissing, mappedRows: [] };
+    }
+
+    const mappedRows = sheetRows.map((row, idx) => {
+      const buyerGstin = String(row[keyMap.buyerGstin] || '').trim().toUpperCase();
+      const buyerName = String(row[keyMap.buyerName] || '').trim();
+      const invoiceNo = String(row[keyMap.invoiceNo] || '').trim();
+      const date = String(row[keyMap.invoiceDate] || '').trim();
+      const taxableValue = Number(row[keyMap.taxableValue] || 0);
+      const gstRate = Number(row[keyMap.gstRate] || 18);
+      const igst = Number(row[keyMap.igst] || 0);
+      const cgst = Number(row[keyMap.cgst] || 0);
+      const sgst = Number(row[keyMap.sgst] || 0);
+      const invoiceValue = Number(row[keyMap.invoiceValue] || taxableValue + igst + cgst + sgst);
+      const placeOfSupply = String(row[keyMap.placeOfSupply] || '').trim();
+
+      return {
+        id: `import-sales-${idx + 1}-${Date.now()}`,
+        invoice_no: invoiceNo,
+        date,
+        buyer_gstin: buyerGstin,
+        buyer_name: buyerName,
+        place_of_supply: placeOfSupply,
+        taxable_value: taxableValue,
+        gst_amount: igst + cgst + sgst,
+        total_value: invoiceValue,
+        items: [{
+          sr_no: 1,
+          description: 'Imported Item',
+          hsn_sac: '',
+          quantity: 1,
+          rate: taxableValue,
+          taxable_value: taxableValue,
+          gst_rate: gstRate,
+          igst,
+          cgst,
+          sgst,
+          total_amount: invoiceValue
+        }],
+        source: 'import'
+      };
+    });
+
+    return { requiredMissing: [], mappedRows };
+  }
+
+  function previewSalesImport(input) {
+    const context = getMonthFileContext(input.gstin, input.financialYear, input.month);
+    const payload = readMonthPayload(context);
+    const filePath = String(input.filePath || '').trim();
+
+    if (!filePath) throw new Error('File path is required');
+    if (!fs.existsSync(filePath)) throw new Error('File not found');
+
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+
+    const parsed = parseImportedSalesRows(rows);
+    if (parsed.requiredMissing.length > 0) {
+      return { ok: false, warning: 'Required columns missing', requiredMissing: parsed.requiredMissing, rows: [], summary: { total: 0, valid: 0, duplicates: 0, errors: 0 } };
+    }
+
+    const previewRows = [];
+    let valid = 0, duplicates = 0, errors = 0;
+
+    parsed.mappedRows.forEach((row, index) => {
+      const statusErrors = [];
+      if (!row.buyer_gstin) statusErrors.push('GSTIN missing');
+      if (!row.invoice_no) statusErrors.push('Invoice No missing');
+      
+      const isDuplicate = payload.sales.b2b.some(e => e.invoice_no === row.invoice_no && e.buyer_gstin === row.buyer_gstin);
+
+      if (statusErrors.length > 0) {
+        row.status = 'error';
+        row.errorMessage = statusErrors.join(', ');
+        errors++;
+      } else if (isDuplicate) {
+        row.status = 'duplicate';
+        duplicates++;
+      } else {
+        row.status = 'valid';
+        valid++;
+      }
+      previewRows.push(row);
+    });
+
+    return { ok: true, rows: previewRows, summary: { total: previewRows.length, valid, duplicates, errors }, requiredMissing: [] };
+  }
+
+  function importSalesData(input) {
+    const context = getMonthFileContext(input.gstin, input.financialYear, input.month);
+    const payload = readMonthPayload(context);
+    const previewData = Array.isArray(input.previewData) ? input.previewData : [];
+    const overwrite = Boolean(input.overwrite);
+
+    let imported = 0;
+    previewData.forEach((row) => {
+      if (row.status === 'error') return;
+      if (row.status === 'duplicate' && !overwrite) return;
+
+      const existingIdx = payload.sales.b2b.findIndex(e => e.invoice_no === row.invoice_no && e.buyer_gstin === row.buyer_gstin);
+      if (existingIdx >= 0) {
+        if (overwrite) {
+          payload.sales.b2b[existingIdx] = { ...payload.sales.b2b[existingIdx], ...row, status: undefined };
+          imported++;
+        }
+      } else {
+        payload.sales.b2b.push({ ...row, status: undefined });
+        imported++;
+      }
+      
+      // Also save to customer master
+      if (row.buyer_gstin && row.buyer_name) {
+        saveCustomer({
+          gstin: input.gstin,
+          customer: { gstin: row.buyer_gstin, name: row.buyer_name, state: row.place_of_supply }
+        });
+      }
+    });
+
+    writeMonthPayload(context, payload);
+    return { imported };
   }
 
   function importPurchase(input) {
@@ -2252,7 +2450,7 @@ function createClientDataService(baseDataDir) {
     });
 
     const hsnSheet = XLSX.utils.json_to_sheet(snapshot.hsnRows, {
-      header: ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Cess']
+      header: ['HSN', 'Description', 'UQC', 'Rate', 'Total Quantity', 'Total Value', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Cess']
     });
 
     XLSX.utils.book_append_sheet(workbook, b2bSheet, 'b2b');
@@ -3786,6 +3984,8 @@ function createClientDataService(baseDataDir) {
     updateSale,
     loadSales,
     deleteSale,
+    previewSalesImport,
+    importSalesData,
     exportSales,
     loadGstr1Data,
     saveGstr1Data,

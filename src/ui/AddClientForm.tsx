@@ -44,6 +44,7 @@ type ClientFormData = {
   authorizedPersonName: string;
   bankDetails: string;
   remarks: string;
+  invoicePrefix: string;
 };
 
 type ErrorMap = Record<string, string>;
@@ -121,6 +122,7 @@ const INITIAL_DATA: ClientFormData = {
   authorizedPersonName: "",
   bankDetails: "",
   remarks: "",
+  invoicePrefix: "INV",
 };
 
 const steps = [
@@ -137,7 +139,9 @@ function derivePanFromGstin(gstin: string): string {
 }
 
 function deriveStateFromGstin(gstin: string): string {
-  return STATE_CODES[gstin.slice(0, 2)] ?? "";
+  const code = gstin.slice(0, 2);
+  const name = STATE_CODES[code];
+  return name ? `${code}-${name}` : "";
 }
 
 export default function AddClientForm({ onSaved, onCancel }: AddClientFormProps) {
@@ -248,6 +252,8 @@ export default function AddClientForm({ onSaved, onCancel }: AddClientFormProps)
         gstin: formData.gstin.trim().toUpperCase(),
         clientType: formData.clientType,
         status: "Active",
+        returnFrequency: formData.filingFrequency,
+        invoicePrefix: formData.invoicePrefix.trim() || "INV",
       });
 
       setMessage("Client saved successfully.");
@@ -462,6 +468,10 @@ export default function AddClientForm({ onSaved, onCancel }: AddClientFormProps)
                 <div>
                   <label className={labelClass}>GST Portal Password</label>
                   <input type="password" className={inputClass} value={formData.gstPortalPassword} onChange={(e) => setField("gstPortalPassword", e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>B2B Invoice Prefix</label>
+                  <input className={inputClass} value={formData.invoicePrefix} onChange={(e) => setField("invoicePrefix", e.target.value.toUpperCase())} placeholder="e.g. INV, GST, SP" />
                 </div>
               </div>
             </section>

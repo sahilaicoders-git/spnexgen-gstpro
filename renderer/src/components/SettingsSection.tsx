@@ -42,6 +42,7 @@ const THEME_OPTIONS: Array<{ id: ThemeMode; label: string; icon: typeof Sun; des
 
 const CLIENT_TYPES = ["Regular", "Composition", "SEZ", "Unregistered"] as const;
 const STATUS_OPTIONS = ["Active", "Inactive", "Suspended"] as const;
+const FREQUENCY_OPTIONS = ["Monthly", "Quarterly"] as const;
 
 type UpdateState =
   | { phase: "idle" }
@@ -78,6 +79,8 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
   const [clientName, setClientName] = useState("");
   const [clientType, setClientType] = useState<string>("Regular");
   const [status, setStatus] = useState<string>("Active");
+  const [returnFrequency, setReturnFrequency] = useState<"Monthly" | "Quarterly">("Monthly");
+  const [invoicePrefix, setInvoicePrefix] = useState("INV");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -146,6 +149,8 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
     setClientName(selectedClient.clientName);
     setClientType(selectedClient.clientType || "Regular");
     setStatus(selectedClient.status || "Active");
+    setReturnFrequency(selectedClient.returnFrequency || "Monthly");
+    setInvoicePrefix(selectedClient.invoicePrefix || "INV");
     setDirty(false);
     setSaveMsg(null);
   }, [selectedClient]);
@@ -170,8 +175,15 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
     if (!clientName.trim()) { setSaveMsg({ type: "err", text: "Client name cannot be empty." }); return; }
     setSaving(true); setSaveMsg(null);
     try {
-      await window.gstAPI.createClientStructure({ clientName: clientName.trim(), gstin: selectedClient.gstin, clientType, status });
-      await onClientUpdated({ ...selectedClient, clientName: clientName.trim(), clientType, status });
+      await window.gstAPI.createClientStructure({ 
+        clientName: clientName.trim(), 
+        gstin: selectedClient.gstin, 
+        clientType, 
+        status,
+        returnFrequency,
+        invoicePrefix
+      });
+      await onClientUpdated({ ...selectedClient, clientName: clientName.trim(), clientType, status, returnFrequency, invoicePrefix });
       setSaveMsg({ type: "ok", text: "Client updated successfully." });
       setDirty(false);
     } catch (err) {
@@ -416,6 +428,19 @@ export default function SettingsSection({ selectedClient, theme, onSetTheme, onC
                           onChange={(e) => { setStatus(e.target.value); setDirty(true); }}>
                           {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
                         </select>
+                      </div>
+                      <div>
+                        <label htmlFor="edit-client-frequency" className={LABEL}>Return Frequency</label>
+                        <select id="edit-client-frequency" className={INPUT} value={returnFrequency}
+                          onChange={(e) => { setReturnFrequency(e.target.value as "Monthly" | "Quarterly"); setDirty(true); }}>
+                          {FREQUENCY_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="edit-client-prefix" className={LABEL}>B2B Invoice Prefix</label>
+                        <input id="edit-client-prefix" className={INPUT} value={invoicePrefix}
+                          onChange={(e) => { setInvoicePrefix(e.target.value.toUpperCase()); setDirty(true); }}
+                          placeholder="e.g. INV, GST, SP" />
                       </div>
                     </div>
 
