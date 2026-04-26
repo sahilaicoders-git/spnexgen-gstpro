@@ -45,17 +45,17 @@ const iconMap = {
   settings: Settings,
 } as const;
 
-// ── Per-group accent colours (same in both modes, just opacity differs) ────────
+// ── Per-group accent colours ───────────────────────────────────────────────────
 const groupAccents: Record<string, { hex: string; glow: string }> = {
-  dashboard:     { hex: "#f59e0b", glow: "rgba(245,158,11,0.28)"  },
-  clients:       { hex: "#06b6d4", glow: "rgba(6,182,212,0.28)"   },
-  sales:         { hex: "#10b981", glow: "rgba(16,185,129,0.28)"  },
-  purchase:      { hex: "#8b5cf6", glow: "rgba(139,92,246,0.28)"  },
-  "gst-returns": { hex: "#f43f5e", glow: "rgba(244,63,94,0.28)"   },
-  reports:       { hex: "#3b82f6", glow: "rgba(59,130,246,0.28)"  },
-  data:          { hex: "#f97316", glow: "rgba(249,115,22,0.28)"  },
-  utilities:     { hex: "#a855f7", glow: "rgba(168,85,247,0.28)"  },
-  online:        { hex: "#14b8a6", glow: "rgba(20,184,166,0.28)"  },
+  dashboard:     { hex: "#f59e0b", glow: "rgba(245,158,11,0.25)"  },
+  clients:       { hex: "#06b6d4", glow: "rgba(6,182,212,0.25)"   },
+  sales:         { hex: "#10b981", glow: "rgba(16,185,129,0.25)"  },
+  purchase:      { hex: "#8b5cf6", glow: "rgba(139,92,246,0.25)"  },
+  "gst-returns": { hex: "#f43f5e", glow: "rgba(244,63,94,0.25)"   },
+  reports:       { hex: "#3b82f6", glow: "rgba(59,130,246,0.25)"  },
+  data:          { hex: "#f97316", glow: "rgba(249,115,22,0.25)"  },
+  utilities:     { hex: "#a855f7", glow: "rgba(168,85,247,0.25)"  },
+  online:        { hex: "#14b8a6", glow: "rgba(20,184,166,0.25)"  },
   settings:      { hex: "#64748b", glow: "rgba(100,116,139,0.18)" },
 };
 
@@ -146,61 +146,67 @@ export default function Sidebar({
     return () => { document.removeEventListener("keydown", onKeyDown); previousActiveRef.current?.focus?.(); };
   }, [mobileOpen, onCloseMobile]);
 
-  // ── Theme tokens ─────────────────────────────────────────────────────────────
+  // ── Theme tokens (Modern redesign) ──────────────────────────────────────────
   const T = darkMode ? {
-    sidebarBg:       "linear-gradient(160deg,#080c17 0%,#0b0f1e 55%,#080b15 100%)",
-    border:          "rgba(255,255,255,0.055)",
-    shadow:          "6px 0 40px rgba(0,0,0,0.55), inset -1px 0 0 rgba(255,255,255,0.04)",
-    // text
-    labelColor:      "#e2e8f0",   // main item label
-    mutedLabel:      "#475569",   // section header text
-    childLabel:      "#4b5563",   // inactive child text
-    childHover:      "#9ca3af",
-    // icon
-    iconBase:        "#4b5563",   // inactive icon
-    // bg
+    // Dark mode — rich deep navy with subtle warm tint
+    sidebarBg:       "linear-gradient(180deg,#0f1629 0%,#121a30 50%,#0d1322 100%)",
+    border:          "rgba(255,255,255,0.06)",
+    shadow:          "4px 0 32px rgba(0,0,0,0.45), inset -1px 0 0 rgba(255,255,255,0.03)",
+    labelColor:      "#e2e8f0",
+    mutedLabel:      "#475569",
+    childLabel:      "#64748b",
+    childHover:      "#cbd5e1",
+    iconBase:        "#475569",
     iconBaseBg:      "rgba(255,255,255,0.04)",
-    hoverRowBg:      "rgba(255,255,255,0.04)",
-    connectorLine:   "rgba(255,255,255,0.05)",
-    // bottom card
-    cardBg:          "rgba(255,255,255,0.025)",
-    cardBorder:      "rgba(255,255,255,0.065)",
-    switchBtnBorder: "rgba(255,255,255,0.055)",
+    hoverRowBg:      "rgba(255,255,255,0.05)",
+    connectorLine:   "rgba(255,255,255,0.06)",
+    cardBg:          "rgba(255,255,255,0.03)",
+    cardBorder:      "rgba(255,255,255,0.07)",
+    switchBtnBorder: "rgba(255,255,255,0.06)",
     switchBtnColor:  "#64748b",
-    switchBtnHover:  "rgba(255,255,255,0.06)",
+    switchBtnHover:  "rgba(255,255,255,0.07)",
     switchBtnHoverColor: "#cbd5e1",
     footerHint:      "#1e293b",
     clientNameColor: "#e2e8f0",
     versionColor:    "#334155",
     toggleColor:     "#4b5563",
     toggleHover:     "rgba(255,255,255,0.06)",
+    brandBadgeBg:    "linear-gradient(135deg,#6366f1 0%,#a855f7 100%)",
+    brandBadgeShadow:"0 0 18px rgba(99,102,241,0.4), 0 4px 10px rgba(0,0,0,0.4)",
+    avatarBg:        "linear-gradient(135deg,#6366f1,#a855f7)",
+    avatarShadow:    "0 0 14px rgba(99,102,241,0.3)",
+    sectionDivider:  "rgba(255,255,255,0.04)",
+    headerBorderB:   "rgba(255,255,255,0.05)",
   } : {
-    sidebarBg:       "linear-gradient(160deg,#ffffff 0%,#f8fafc 50%,#f1f5f9 100%)",
-    border:          "rgba(0,0,0,0.07)",
-    shadow:          "4px 0 24px rgba(0,0,0,0.07), inset -1px 0 0 rgba(0,0,0,0.04)",
-    // text
+    // Light mode — clean white with cool undertones
+    sidebarBg:       "linear-gradient(180deg,#ffffff 0%,#fafbfe 50%,#f5f7fc 100%)",
+    border:          "rgba(99,102,241,0.08)",
+    shadow:          "4px 0 24px rgba(99,102,241,0.06), inset -1px 0 0 rgba(99,102,241,0.05)",
     labelColor:      "#1e293b",
     mutedLabel:      "#94a3b8",
     childLabel:      "#94a3b8",
     childHover:      "#334155",
-    // icon
     iconBase:        "#94a3b8",
-    // bg
-    iconBaseBg:      "rgba(0,0,0,0.04)",
-    hoverRowBg:      "rgba(0,0,0,0.04)",
-    connectorLine:   "rgba(0,0,0,0.07)",
-    // bottom card
-    cardBg:          "rgba(0,0,0,0.03)",
-    cardBorder:      "rgba(0,0,0,0.08)",
-    switchBtnBorder: "rgba(0,0,0,0.08)",
+    iconBaseBg:      "rgba(99,102,241,0.05)",
+    hoverRowBg:      "rgba(99,102,241,0.06)",
+    connectorLine:   "rgba(99,102,241,0.08)",
+    cardBg:          "rgba(99,102,241,0.03)",
+    cardBorder:      "rgba(99,102,241,0.08)",
+    switchBtnBorder: "rgba(99,102,241,0.1)",
     switchBtnColor:  "#64748b",
-    switchBtnHover:  "rgba(0,0,0,0.05)",
+    switchBtnHover:  "rgba(99,102,241,0.07)",
     switchBtnHoverColor: "#1e293b",
     footerHint:      "#cbd5e1",
     clientNameColor: "#0f172a",
     versionColor:    "#94a3b8",
     toggleColor:     "#94a3b8",
-    toggleHover:     "rgba(0,0,0,0.05)",
+    toggleHover:     "rgba(99,102,241,0.06)",
+    brandBadgeBg:    "linear-gradient(135deg,#6366f1 0%,#a855f7 100%)",
+    brandBadgeShadow:"0 4px 14px rgba(99,102,241,0.3)",
+    avatarBg:        "linear-gradient(135deg,#6366f1,#a855f7)",
+    avatarShadow:    "0 4px 10px rgba(99,102,241,0.25)",
+    sectionDivider:  "rgba(99,102,241,0.06)",
+    headerBorderB:   "rgba(99,102,241,0.06)",
   };
 
   // ── Build sidebar ─────────────────────────────────────────────────────────────
@@ -222,16 +228,14 @@ export default function Sidebar({
       {/* ── Brand header ─────────────────────────────────────────────────────── */}
       <div
         className="flex h-14 shrink-0 items-center justify-between overflow-hidden px-3"
-        style={{ borderBottom: `1px solid ${T.border}` }}
+        style={{ borderBottom: `1px solid ${T.headerBorderB}` }}
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <div
             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-all duration-300"
             style={{
-              background: "linear-gradient(135deg,#6366f1 0%,#06b6d4 100%)",
-              boxShadow: darkMode
-                ? "0 0 20px rgba(99,102,241,0.45), 0 4px 12px rgba(0,0,0,0.5)"
-                : "0 4px 12px rgba(99,102,241,0.3)",
+              background: T.brandBadgeBg,
+              boxShadow: T.brandBadgeShadow,
             }}
           >
             <Zap size={16} className="text-white" />
@@ -300,13 +304,13 @@ export default function Sidebar({
 
             // Active colours
             const activeIconBg  = hexToRgba(accent.hex, darkMode ? 0.18 : 0.12);
-            const activeRowBg   = hexToRgba(accent.hex, darkMode ? 0.1 : 0.07);
+            const activeRowBg   = hexToRgba(accent.hex, darkMode ? 0.10 : 0.07);
             const activeTextColor = accent.hex;
 
             return (
               <div key={group.id}>
                 {showDivider && (
-                  <div className={`${isCollapsed ? "my-2 mx-1" : "my-2 mx-2"} h-px`} style={{ background: T.border }} />
+                  <div className={`${isCollapsed ? "my-2 mx-1" : "my-2 mx-2"} h-px`} style={{ background: T.sectionDivider }} />
                 )}
 
                 {/* Group button */}
@@ -332,10 +336,10 @@ export default function Sidebar({
                   {/* Active left bar */}
                   {groupIsActive && (
                     <span
-                      className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full"
+                      className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full transition-all duration-300"
                       style={{
-                        background: `linear-gradient(180deg,${accent.hex},${hexToRgba(accent.hex, 0.5)})`,
-                        boxShadow: darkMode ? `0 0 10px ${accent.glow}` : "none",
+                        background: `linear-gradient(180deg,${accent.hex},${hexToRgba(accent.hex, 0.4)})`,
+                        boxShadow: `0 0 8px ${accent.glow}`,
                       }}
                     />
                   )}
@@ -345,7 +349,7 @@ export default function Sidebar({
                     className="group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all duration-200"
                     style={{
                       background: groupIsActive ? activeIconBg : T.iconBaseBg,
-                      boxShadow: groupIsActive && darkMode ? `0 0 14px ${accent.glow}` : "none",
+                      boxShadow: groupIsActive ? `0 0 12px ${accent.glow}` : "none",
                     }}
                   >
                     <Icon
@@ -422,8 +426,8 @@ export default function Sidebar({
                               <span
                                 className="h-1.5 w-1.5 shrink-0 rounded-full transition-all duration-200"
                                 style={{
-                                  background: childActive ? accent.hex : (darkMode ? "#1e293b" : "#cbd5e1"),
-                                  boxShadow: childActive && darkMode ? `0 0 6px ${accent.glow}` : "none",
+                                  background: childActive ? accent.hex : (darkMode ? "#1e293b" : "#d4d8e8"),
+                                  boxShadow: childActive ? `0 0 6px ${accent.glow}` : "none",
                                   flexShrink: 0,
                                 }}
                               />
@@ -479,8 +483,8 @@ export default function Sidebar({
               <div
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-black text-white"
                 style={{
-                  background: "linear-gradient(135deg,#6366f1,#06b6d4)",
-                  boxShadow: darkMode ? "0 0 16px rgba(99,102,241,0.35)" : "0 4px 10px rgba(99,102,241,0.25)",
+                  background: T.avatarBg,
+                  boxShadow: T.avatarShadow,
                 }}
               >
                 {(selectedClientName || "?").charAt(0).toUpperCase()}
@@ -516,12 +520,12 @@ export default function Sidebar({
                 onClick={() => { onLogout(); onCloseMobile(); }}
                 className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200"
                 style={{
-                  background: "rgba(239,68,68,0.07)",
+                  background: darkMode ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.05)",
                   color: "#ef4444",
-                  border: "1px solid rgba(239,68,68,0.14)",
+                  border: `1px solid ${darkMode ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.12)"}`,
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.14)"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239,68,68,0.07)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = darkMode ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.05)"}
               >
                 <LogOut size={12} />
                 Sign Out
@@ -551,7 +555,7 @@ export default function Sidebar({
           <button
             type="button"
             className="absolute inset-0 backdrop-blur-sm"
-            style={{ background: "rgba(0,0,0,0.55)" }}
+            style={{ background: darkMode ? "rgba(0,0,0,0.6)" : "rgba(15,23,42,0.3)" }}
             onClick={onCloseMobile}
             aria-label="Close sidebar overlay"
           />

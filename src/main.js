@@ -690,7 +690,7 @@ function createSplashWindow() {
     movable: true,
     fullscreenable: false,
     show: false,
-    backgroundColor: '#0f1a22',
+    backgroundColor: '#f4f6fb',
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false

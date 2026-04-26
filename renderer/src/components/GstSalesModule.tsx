@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, FileDown, FileSpreadsheet, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Calendar, Download, ExternalLink, FileDown, FileSpreadsheet, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import type { ClientRecord, MasterPartyResponse, SaleItem, SaleRecord } from "../types";
 import PartyLookupDropdown from "./PartyLookupDropdown";
 
@@ -218,6 +218,134 @@ function createInvoiceNumber(prefix: string, existingSales: SaleRecord[] = []) {
   const maxSuffix = numericSuffixes.length > 0 ? Math.max(...numericSuffixes) : 0;
   const nextNum = (maxSuffix + 1).toString();
   return `${prefix}${nextNum}`;
+}
+
+// ── Date Change Popup (F2 shortcut) ────────────────────────────────────────────
+type DatePopupProps = {
+  currentDate: string;
+  onDateChange: (date: string) => void;
+  onClose: () => void;
+};
+
+function DateChangePopup({ currentDate, onDateChange, onClose }: DatePopupProps) {
+  const [tempDate, setTempDate] = useState(currentDate);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Focus the date input when popup opens
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key === "Enter") { e.preventDefault(); onDateChange(tempDate); onClose(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [tempDate, onDateChange, onClose]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  const formatDisplay = (iso: string) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-white/90" />
+            <h3 className="text-sm font-semibold text-white">Change Invoice Date</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-bold text-white/80 tracking-wider">F2</span>
+            <button type="button" onClick={onClose} className="rounded-lg p-1 text-white/70 hover:bg-white/20 hover:text-white transition">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Current date display */}
+          <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Current Date</p>
+            <p className="text-lg font-bold text-slate-800">{formatDisplay(currentDate)}</p>
+          </div>
+
+          {/* Date input */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block">New Date</label>
+            <input
+              ref={inputRef}
+              type="date"
+              className="w-full rounded-xl border border-indigo-200 bg-indigo-50/50 px-4 py-3 text-sm font-medium text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition"
+              value={tempDate}
+              onChange={(e) => setTempDate(e.target.value)}
+            />
+          </div>
+
+          {/* Quick presets */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setTempDate(today); }}
+              className={`flex-1 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                tempDate === today
+                  ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTempDate(yesterday); }}
+              className={`flex-1 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                tempDate === yesterday
+                  ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Yesterday
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-5 py-3">
+          <p className="text-[10px] text-slate-400">
+            <kbd className="rounded bg-slate-200 px-1 py-0.5 text-[9px] font-bold">Enter</kbd> apply · <kbd className="rounded bg-slate-200 px-1 py-0.5 text-[9px] font-bold">Esc</kbd> cancel
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => { onDateChange(tempDate); onClose(); }}
+              className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
+            >
+              Apply Date
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Edit Modal ─────────────────────────────────────────────────────────────────
@@ -664,6 +792,7 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
   const [customerQuery, setCustomerQuery] = useState("");
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
   const [manualCustomerEntry, setManualCustomerEntry] = useState(false);
+  const [showDatePopup, setShowDatePopup] = useState(false);
 
   const [salesData, setSalesData] = useState<{ b2b: SaleRecord[]; b2c: SaleRecord[] }>({ b2b: [], b2c: [] });
   const [summaryTab, setSummaryTab] = useState<"b2b" | "b2c">("b2b");
@@ -878,6 +1007,24 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
   useEffect(() => {
     loadSales();
   }, [selectedClient.gstin, financialYear, month]);
+
+  // ── Global keyboard shortcuts for Add Sale mode ──────────────────────────────
+  useEffect(() => {
+    if (mode !== "add") return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        setShowDatePopup(true);
+      }
+      // Ctrl+S / Cmd+S — quick save from anywhere
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveSale();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mode]);
 
   const handleItemChange = (index: number, key: keyof SaleItem, value: string) => {
     const updated = items.map((item, idx) => {
@@ -1465,6 +1612,14 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
 
   return (
     <section className="space-y-4">
+      {/* F2 Date Change Popup */}
+      {showDatePopup && (
+        <DateChangePopup
+          currentDate={invoiceDate}
+          onDateChange={setInvoiceDate}
+          onClose={() => setShowDatePopup(false)}
+        />
+      )}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-800">Add Sale</h2>
 
@@ -1498,7 +1653,17 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-600">Invoice Date</label>
+            <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
+              Invoice Date
+              <button
+                type="button"
+                onClick={() => setShowDatePopup(true)}
+                className="inline-flex items-center gap-1 rounded bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 text-[9px] font-bold text-indigo-600 hover:bg-indigo-100 transition"
+                title="Press F2 to quickly change date"
+              >
+                F2
+              </button>
+            </label>
             <input type="date" className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
           </div>
           <div>
@@ -1572,12 +1737,116 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-700">Items</h3>
-          <button type="button" onClick={addRow} className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100">
-            <Plus size={14} /> Add Item
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-slate-400">
+              <kbd className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 font-bold">↑↓←→</kbd>
+              <span>navigate</span>
+              <kbd className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 font-bold">Enter</kbd>
+              <span>next cell</span>
+              <kbd className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 font-bold">Ctrl+S</kbd>
+              <span>save</span>
+            </div>
+            <button type="button" onClick={addRow} className="inline-flex items-center gap-1 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100">
+              <Plus size={14} /> Add Item
+            </button>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          onKeyDown={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.matches("input[data-row][data-col]")) return;
+
+            const row = parseInt(target.getAttribute("data-row") || "0", 10);
+            const col = parseInt(target.getAttribute("data-col") || "0", 10);
+            const totalCols = 5; // description(0), hsn(1), qty(2), rate(3), gst%(4)
+            const totalRows = items.length;
+
+            const focusCell = (r: number, c: number) => {
+              const next = e.currentTarget.querySelector<HTMLInputElement>(
+                `input[data-row="${r}"][data-col="${c}"]`
+              );
+              if (next) { next.focus(); next.select(); return true; }
+              return false;
+            };
+
+            // Arrow Up
+            if (e.key === "ArrowUp" && !e.shiftKey) {
+              if (row > 0) { e.preventDefault(); focusCell(row - 1, col); }
+            }
+            // Arrow Down
+            else if (e.key === "ArrowDown" && !e.shiftKey) {
+              e.preventDefault();
+              if (row < totalRows - 1) {
+                focusCell(row + 1, col);
+              } else {
+                // Auto-add new row when pressing down on last row
+                addRow();
+                setTimeout(() => focusCell(row + 1, col), 30);
+              }
+            }
+            // Arrow Left — move to previous cell (only when cursor is at start)
+            else if (e.key === "ArrowLeft" && !e.shiftKey) {
+              const input = target as HTMLInputElement;
+              if (input.selectionStart === 0 && input.selectionEnd === 0) {
+                if (col > 0) { e.preventDefault(); focusCell(row, col - 1); }
+                else if (row > 0) { e.preventDefault(); focusCell(row - 1, totalCols - 1); }
+              }
+            }
+            // Arrow Right — move to next cell (only when cursor is at end)
+            else if (e.key === "ArrowRight" && !e.shiftKey) {
+              const input = target as HTMLInputElement;
+              if (input.selectionStart === input.value.length) {
+                if (col < totalCols - 1) { e.preventDefault(); focusCell(row, col + 1); }
+                else if (row < totalRows - 1) { e.preventDefault(); focusCell(row + 1, 0); }
+              }
+            }
+            // Enter — advance to next cell, or next row, or auto-add
+            else if (e.key === "Enter" && !e.ctrlKey && !e.metaKey) {
+              e.preventDefault();
+              if (col < totalCols - 1) {
+                focusCell(row, col + 1);
+              } else if (row < totalRows - 1) {
+                focusCell(row + 1, 0);
+              } else {
+                addRow();
+                setTimeout(() => focusCell(row + 1, 0), 30);
+              }
+            }
+            // Tab — natural flow but keep within grid
+            else if (e.key === "Tab" && !e.shiftKey) {
+              if (col < totalCols - 1) {
+                e.preventDefault();
+                focusCell(row, col + 1);
+              } else if (row < totalRows - 1) {
+                e.preventDefault();
+                focusCell(row + 1, 0);
+              }
+              // else let Tab naturally move to the Save button
+            }
+            // Shift+Tab — reverse
+            else if (e.key === "Tab" && e.shiftKey) {
+              if (col > 0) {
+                e.preventDefault();
+                focusCell(row, col - 1);
+              } else if (row > 0) {
+                e.preventDefault();
+                focusCell(row - 1, totalCols - 1);
+              }
+            }
+            // Ctrl+S / Cmd+S — quick save
+            else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+              e.preventDefault();
+              saveSale();
+            }
+            // Ctrl+Enter — save
+            else if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+              e.preventDefault();
+              saveSale();
+            }
+          }}
+        >
           <table className="min-w-[1080px] w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -1599,12 +1868,55 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
               {items.map((item, idx) => (
                 <tr key={item.sr_no} className="border-b border-slate-100">
                   <td className="px-2 py-2">{item.sr_no}</td>
-                  <td className="px-2 py-2"><input className="w-44 rounded border border-slate-300 px-2 py-1.5" value={item.description} onChange={(e) => handleItemChange(idx, "description", e.target.value)} /></td>
-                  <td className="px-2 py-2"><input className="w-28 rounded border border-slate-300 px-2 py-1.5" value={item.hsn_sac} onChange={(e) => handleItemChange(idx, "hsn_sac", e.target.value)} /></td>
-                  <td className="px-2 py-2"><input type="number" className="w-20 rounded border border-slate-300 px-2 py-1.5" value={item.quantity} onChange={(e) => handleItemChange(idx, "quantity", e.target.value)} /></td>
-                  <td className="px-2 py-2"><input type="number" className="w-24 rounded border border-slate-300 px-2 py-1.5" value={item.rate} onChange={(e) => handleItemChange(idx, "rate", e.target.value)} /></td>
+                  <td className="px-2 py-2">
+                    <input
+                      data-row={idx} data-col={0}
+                      className="w-44 rounded border border-slate-300 px-2 py-1.5 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 focus:outline-none transition"
+                      value={item.description}
+                      onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      data-row={idx} data-col={1}
+                      className="w-28 rounded border border-slate-300 px-2 py-1.5 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 focus:outline-none transition"
+                      value={item.hsn_sac}
+                      onChange={(e) => handleItemChange(idx, "hsn_sac", e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      type="number"
+                      data-row={idx} data-col={2}
+                      className="w-20 rounded border border-slate-300 px-2 py-1.5 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 focus:outline-none transition"
+                      value={item.quantity}
+                      onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      type="number"
+                      data-row={idx} data-col={3}
+                      className="w-24 rounded border border-slate-300 px-2 py-1.5 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 focus:outline-none transition"
+                      value={item.rate}
+                      onChange={(e) => handleItemChange(idx, "rate", e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </td>
                   <td className="px-2 py-2 text-slate-700">{item.taxable_value.toFixed(2)}</td>
-                  <td className="px-2 py-2"><input type="number" className="w-20 rounded border border-slate-300 px-2 py-1.5" value={item.gst_rate} onChange={(e) => handleItemChange(idx, "gst_rate", e.target.value)} /></td>
+                  <td className="px-2 py-2">
+                    <input
+                      type="number"
+                      data-row={idx} data-col={4}
+                      className="w-20 rounded border border-slate-300 px-2 py-1.5 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 focus:outline-none transition"
+                      value={item.gst_rate}
+                      onChange={(e) => handleItemChange(idx, "gst_rate", e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </td>
                   <td className="px-2 py-2 text-slate-700">{item.igst.toFixed(2)}</td>
                   <td className="px-2 py-2 text-slate-700">{item.cgst.toFixed(2)}</td>
                   <td className="px-2 py-2 text-slate-700">{item.sgst.toFixed(2)}</td>
@@ -1627,6 +1939,7 @@ export default function GstSalesModule({ selectedClient, financialYear, month, m
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" onClick={saveSale} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700">
             <FileSpreadsheet size={16} /> Save Sale
+            <kbd className="ml-1 rounded bg-emerald-700 px-1.5 py-0.5 text-[9px] font-bold text-emerald-200">Ctrl+S</kbd>
           </button>
           <button type="button" onClick={() => {
             const relevantSales = saleType === "b2b" ? salesData.b2b : salesData.b2c;
