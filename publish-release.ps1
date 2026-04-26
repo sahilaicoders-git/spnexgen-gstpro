@@ -23,48 +23,50 @@ Write-Host "Repository : $Owner/$Repo"
 Write-Host "Tag        : $Tag"
 Write-Host "Asset      : $ExePath`n"
 
-# ── Step 1: Create the Release ───────────────────────────────────────────────
+# Step 1: Create the Release
 Write-Host "[1/3] Creating GitHub Release for $Tag ..." -ForegroundColor Yellow
 
-$ReleaseBody = @{
-    tag_name         = $Tag
-    name             = "SPGST Pro v$Version"
-    body             = @"
-## SPGST Pro – v$Version Windows Release
+$ReleaseNotes = @"
+## SPGST Pro - v$Version Windows Release
 
-### 📦 Download & Install
+### Download and Install
 Download the installer below: **SPGST Pro-Setup-$Version.exe**
 
-### ✨ What's New in v$Version
+### What is New in v$Version
 
-#### 🎨 Modernized Splash Screen
+#### Modernized Splash Screen
 - Redesigned splash screen with premium visual styling
 - Smooth animations and modern layout
 
-#### 🧭 Sidebar Redesign
+#### Sidebar Redesign
 - Refined sidebar navigation with improved light/dark theme support
 - Updated accent colours and layout transitions
 
-#### 📊 GST Sales Module Enhancements
+#### GST Sales Module Enhancements
 - Enhanced GST sales data entry and reporting
 - Improved invoice management workflow
 
-#### 🔄 Auto-Update Support
+#### Auto-Update Support
 - Seamless in-app auto-update via electron-updater
 - Background download and one-click restart
 
-#### 📤 GSTR-1 Compliance
+#### GSTR-1 Compliance
 - Rate-wise HSN grouping in GSTR-1 report
 - Separated Reverse Charge (RCM) GST from regular tax totals
 - B2B CSV export in GST portal format
 
-### 💻 System Requirements
+### System Requirements
 - Windows 10/11 (64-bit)
 - ~90 MB disk space
 
-### ⚠️ Note
-On first launch, Windows SmartScreen may show a warning — click **More info → Run anyway** to proceed.
+### Note
+On first launch, Windows SmartScreen may show a warning. Click More info then Run anyway to proceed.
 "@
+
+$ReleaseBody = @{
+    tag_name         = $Tag
+    name             = "SPGST Pro v$Version"
+    body             = $ReleaseNotes
     draft            = $false
     prerelease       = $false
     make_latest      = "true"
@@ -78,17 +80,17 @@ try {
         -Body $ReleaseBody `
         -ContentType "application/json"
 
-    Write-Host "  ✅ Release created! ID: $($Release.id)" -ForegroundColor Green
-    Write-Host "  🔗 URL: $($Release.html_url)"
+    Write-Host "  Release created! ID: $($Release.id)" -ForegroundColor Green
+    Write-Host "  URL: $($Release.html_url)"
 } catch {
-    Write-Host "  ❌ Failed to create release: $_" -ForegroundColor Red
+    Write-Host "  Failed to create release: $_" -ForegroundColor Red
     exit 1
 }
 
-# ── Step 2: Upload the EXE asset ─────────────────────────────────────────────
+# Step 2: Upload the EXE asset
 if (-not (Test-Path $ExePath)) {
-    Write-Host "  ❌ EXE not found at: $ExePath" -ForegroundColor Red
-    Write-Host "     Run 'npm run dist:win' first to build the installer." -ForegroundColor Yellow
+    Write-Host "  EXE not found at: $ExePath" -ForegroundColor Red
+    Write-Host "  Run npm run dist:win first to build the installer." -ForegroundColor Yellow
     exit 1
 }
 
@@ -106,15 +108,15 @@ try {
         -Body $FileBytes `
         -ContentType "application/octet-stream"
 
-    Write-Host "  ✅ Asset uploaded!" -ForegroundColor Green
-    Write-Host "  📥 Download URL: $($Asset.browser_download_url)"
+    Write-Host "  Asset uploaded!" -ForegroundColor Green
+    Write-Host "  Download URL: $($Asset.browser_download_url)"
 } catch {
-    Write-Host "  ❌ Upload failed: $_" -ForegroundColor Red
+    Write-Host "  Upload failed: $_" -ForegroundColor Red
     Write-Host "  You can manually upload the EXE at: $($Release.html_url)" -ForegroundColor Magenta
     exit 1
 }
 
-# ── Step 3: Upload the latest.yml (for auto-update) ──────────────────────────
+# Step 3: Upload the latest.yml (for auto-update)
 $YmlPath = "$PSScriptRoot\release\latest.yml"
 if (Test-Path $YmlPath) {
     Write-Host "`n[3/3] Uploading latest.yml (for auto-update) ..." -ForegroundColor Yellow
@@ -129,14 +131,14 @@ if (Test-Path $YmlPath) {
             -Body $YmlFileBytes `
             -ContentType "application/octet-stream"
 
-        Write-Host "  ✅ latest.yml uploaded!" -ForegroundColor Green
+        Write-Host "  latest.yml uploaded!" -ForegroundColor Green
     } catch {
-        Write-Host "  ⚠️ latest.yml upload failed: $_" -ForegroundColor Yellow
+        Write-Host "  latest.yml upload failed: $_" -ForegroundColor Yellow
         Write-Host "  You can manually upload it at: $($Release.html_url)" -ForegroundColor Magenta
     }
 } else {
-    Write-Host "`n  ⚠️ latest.yml not found — auto-update won't work without it." -ForegroundColor Yellow
+    Write-Host "`n  latest.yml not found -- auto-update will not work without it." -ForegroundColor Yellow
 }
 
-Write-Host "`n🎉 Done! Release published at:" -ForegroundColor Green
+Write-Host "`nDone! Release published at:" -ForegroundColor Green
 Write-Host "  $($Release.html_url)" -ForegroundColor Cyan
