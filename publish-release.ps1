@@ -8,7 +8,7 @@ param(
 
 $Owner   = "sahilaicoders-git"
 $Repo    = "spnexgen-gstpro"
-$Version = "2.1.0"
+$Version = "2.1.2"
 $Tag     = "v$Version"
 $ExePath = "$PSScriptRoot\release\SPGST Pro-Setup-$Version.exe"
 
@@ -24,7 +24,7 @@ Write-Host "Tag        : $Tag"
 Write-Host "Asset      : $ExePath`n"
 
 # ── Step 1: Create the Release ───────────────────────────────────────────────
-Write-Host "[1/2] Creating GitHub Release for $Tag ..." -ForegroundColor Yellow
+Write-Host "[1/3] Creating GitHub Release for $Tag ..." -ForegroundColor Yellow
 
 $ReleaseBody = @{
     tag_name         = $Tag
@@ -37,35 +37,26 @@ Download the installer below: **SPGST Pro-Setup-$Version.exe**
 
 ### ✨ What's New in v$Version
 
-#### 🎨 Modern Sidebar Redesign
-- Deep navy dark-mode sidebar with **per-section accent colours** (each section glows in its own unique colour)
-- Full **light/dark theme support** — sidebar switches cleanly between white (light) and navy (dark) based on your OS/app setting
-- Rounded-square icon blocks with colour glow on hover/active
-- Coloured left accent bar with neon glow on active section
-- Glowing dot indicators for sub-menu items
-- Thin connector line on child-item accordion
-- Visual dividers before Online and Settings sections
+#### 🎨 Modernized Splash Screen
+- Redesigned splash screen with premium visual styling
+- Smooth animations and modern layout
 
-#### ⚙️ Settings — Tabbed Layout
-- Settings page now has 4 clean tabs: **Directory**, **Theme**, **Updates**, **Backup**
-- Each tab shows only its own content — no more scrolling through all settings
-- **Backup tab**: Create ZIP backup in one click + Restore from ZIP with automatic safety-backup
-- **Theme tab**: Large clickable tile cards (Light / Dark / System)
+#### 🧭 Sidebar Redesign
+- Refined sidebar navigation with improved light/dark theme support
+- Updated accent colours and layout transitions
 
-#### 📤 B2B CSV Export & SPOnline JSON Tool
-- **Sales Summary → B2B tab** now has "Export B2B CSV (GST Portal Format)" button
-- CSV matches the exact GST portal column format (GSTIN, Invoice date as dd-MMM-yy, Place Of Supply as code-State, etc.)
-- Direct link to **SPOnline CSV→JSON Tool** for one-click GSTR-1 JSON generation
-- New **Utilities → GSTR-1 JSON Converter** page with step-by-step guide and CSV format reference table
+#### 📊 GST Sales Module Enhancements
+- Enhanced GST sales data entry and reporting
+- Improved invoice management workflow
 
-#### ✏️ Sales Edit Feature
-- Edit existing B2B and B2C invoices directly from Sales Summary
-- Full edit modal with line-item editing and live tax recalculation
+#### 🔄 Auto-Update Support
+- Seamless in-app auto-update via electron-updater
+- Background download and one-click restart
 
-#### 📄 GSTR-1 Document Summary (Table 13)
-- Full editable Table 13 grid with all 12 GST document types
-- Auto-calculates Total Number and Net Issued from serial ranges
-- Auto-populates "Invoices for outward supply" from B2B dataset
+#### 📤 GSTR-1 Compliance
+- Rate-wise HSN grouping in GSTR-1 report
+- Separated Reverse Charge (RCM) GST from regular tax totals
+- B2B CSV export in GST portal format
 
 ### 💻 System Requirements
 - Windows 10/11 (64-bit)
@@ -101,7 +92,7 @@ if (-not (Test-Path $ExePath)) {
     exit 1
 }
 
-Write-Host "`n[2/2] Uploading installer EXE (~$([math]::Round((Get-Item $ExePath).Length/1MB))MB) ..." -ForegroundColor Yellow
+Write-Host "`n[2/3] Uploading installer EXE (~$([math]::Round((Get-Item $ExePath).Length/1MB))MB) ..." -ForegroundColor Yellow
 
 $UploadUrl = $Release.upload_url -replace '\{.*\}', ''
 $FileName  = [System.IO.Path]::GetFileName($ExePath)
@@ -121,6 +112,30 @@ try {
     Write-Host "  ❌ Upload failed: $_" -ForegroundColor Red
     Write-Host "  You can manually upload the EXE at: $($Release.html_url)" -ForegroundColor Magenta
     exit 1
+}
+
+# ── Step 3: Upload the latest.yml (for auto-update) ──────────────────────────
+$YmlPath = "$PSScriptRoot\release\latest.yml"
+if (Test-Path $YmlPath) {
+    Write-Host "`n[3/3] Uploading latest.yml (for auto-update) ..." -ForegroundColor Yellow
+    $YmlFileName  = [System.IO.Path]::GetFileName($YmlPath)
+    $YmlFileBytes = [System.IO.File]::ReadAllBytes($YmlPath)
+
+    try {
+        $YmlAsset = Invoke-RestMethod `
+            -Uri "${UploadUrl}?name=$([System.Uri]::EscapeDataString($YmlFileName))" `
+            -Method POST `
+            -Headers $Headers `
+            -Body $YmlFileBytes `
+            -ContentType "application/octet-stream"
+
+        Write-Host "  ✅ latest.yml uploaded!" -ForegroundColor Green
+    } catch {
+        Write-Host "  ⚠️ latest.yml upload failed: $_" -ForegroundColor Yellow
+        Write-Host "  You can manually upload it at: $($Release.html_url)" -ForegroundColor Magenta
+    }
+} else {
+    Write-Host "`n  ⚠️ latest.yml not found — auto-update won't work without it." -ForegroundColor Yellow
 }
 
 Write-Host "`n🎉 Done! Release published at:" -ForegroundColor Green
